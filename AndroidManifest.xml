@@ -23,7 +23,8 @@
             android:label="pandoroid"
             android:screenOrientation="fullSensor"
             android:theme="@style/PandoroidStartUpTheme"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"></action>
                 <category android:name="android.intent.category.LAUNCHER"></category>
