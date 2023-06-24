@@ -17,7 +17,6 @@
  */
 package com.pandoroid;
 
-import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -26,7 +25,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
 //import android.graphics.BitmapFactory;
 import android.media.AudioManager;
 import android.media.session.MediaSession;
@@ -34,15 +32,19 @@ import android.net.ConnectivityManager;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.telephony.PhoneStateListener;
+import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.KeyEvent;
 
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 
@@ -59,8 +61,13 @@ import com.pandoroid.playback.OnPlaybackHaltedListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
+
 /**
  * Description: Someone really needs to give this class some loving, document
  *  it up, organize it, and make it thread safe.
@@ -152,8 +159,8 @@ public class PandoraRadioService extends Service {
         m_pandora_remote = new PandoraRadio();
         image_downloader = new ImageDownloader();
         m_stations = new ArrayList<>();
-        
-        
+
+
         connectivity_manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         m_prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
@@ -168,47 +175,49 @@ public class PandoraRadioService extends Service {
                 Log.i("Pandoroid", "onCreate Acquiring WakeLock");
                 mWakeLock.acquire();
             }
-        }catch (final Exception e) {
+        } catch (final Exception e) {
             Log.e("Pandoroid", "Error Acquiring WakeLock");
         }
 
         // Register the listener with the telephony manager
-        telephonyManager.listen(new PhoneStateListener() {
-            boolean pausedForRing = false;
-            @Override
-            public void onCallStateChanged(final int state, final String incomingNumber) {
-                Log.i("pandoroid telephony", "State changed: " + state);
-                switch(state) {
+        //telephonyManager.listen(new PhoneStateListener() {
+        //    boolean pausedForRing = false;
+//
+        //    //@Override
+        //    public void onCallStateChanged(final int state) {
+        //        Log.i("pandoroid telephony", "State changed: " + state);
+        //        switch (state) {
+//
+        //            case TelephonyManager.CALL_STATE_IDLE:
+        //                Log.d("DEBUG", "***********IDLE********");
+        //                if (pausedForRing && m_song_playback != null) {
+        //                    if (m_prefs.getBoolean("behave_resumeOnHangup", true)) {
+        //                        if (m_song_playback != null && !m_paused) {
+        //                            m_song_playback.play();
+        //                        }
+        //                    }
+        //                }
+//
+        //                pausedForRing = false;
+        //                break;
+//
+        //            case TelephonyManager.CALL_STATE_OFFHOOK:
+        //            case TelephonyManager.CALL_STATE_RINGING:
+        //                Log.d("DEBUG", "***********RINGING********");
+        //                if (m_song_playback != null) {
+        //                    m_song_playback.pause();
+        //                }
+//
+        //                pausedForRing = true;
+        //                break;
+        //        }
+        //    }
+        //}, PhoneStateListener.LISTEN_CALL_STATE);
 
-                case TelephonyManager.CALL_STATE_IDLE:
-                    Log.d("DEBUG", "***********IDLE********");
-                    if(pausedForRing && m_song_playback != null) {
-                        if(m_prefs.getBoolean("behave_resumeOnHangup", true)) {
-                            if(m_song_playback != null && !m_paused){
-                                m_song_playback.play();
-                            }
-                        }
-                    }
 
-                    pausedForRing = false;
-                    break;
-
-                case TelephonyManager.CALL_STATE_OFFHOOK:
-                case TelephonyManager.CALL_STATE_RINGING:
-                    Log.d("DEBUG", "***********RINGING********");
-                    if(m_song_playback != null) {
-                        m_song_playback.pause();
-                    }
-
-                    pausedForRing = true;
-                    break;
-                }
-            }
-        }, PhoneStateListener.LISTEN_CALL_STATE);
-        
         m_music_intent_receiver = new MusicIntentReceiver();
-        this.registerReceiver(m_music_intent_receiver, 
-                              new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY));
+        this.registerReceiver(m_music_intent_receiver,
+                new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY));
     }
 
     @Override
@@ -323,6 +332,19 @@ public class PandoraRadioService extends Service {
 
     public void setNotification() {
         try {
+            final int mNotificationId = 0;
+
+            // The id of the group.
+            String groupId = "pandoroid_01";
+            // The user-visible name of the group.
+            CharSequence groupName = "Pandoroid Notification Group";
+            NotificationManager notificationManager =
+                    (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                notificationManager.createNotificationChannel(new NotificationChannel("default", groupName, NotificationManager.IMPORTANCE_HIGH));
+            }
+
             Song tmp_song;
             tmp_song = m_song_playback.getSong();
             Log.i("Pandoroid", "setNotification:" + " By Station ID " + tmp_song.getStationId());
@@ -383,10 +405,7 @@ public class PandoraRadioService extends Service {
                         //        MediaButtonReceiver.buildMediaButtonPendingIntent(getApplicationContext(),
                         //                PlaybackStateCompat.ACTION_PLAY_PAUSE)))
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
-            final int mNotificationId = 1;
-            final NotificationManager mNotifyMgr =
-                    (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            mNotifyMgr.notify(mNotificationId, mBuilder.build());
+            notificationManager.notify(mNotificationId, mBuilder.build());
         } catch (final Exception e) {
             Log.i("Pandoroid", "Error Setting Notification");
         }
@@ -636,13 +655,174 @@ public class PandoraRadioService extends Service {
         
         private Song m_song;
     }
+
+    //public abstract static class ServerAsyncTask<Params>{
+    //    protected static final int ERROR_UNSUPPORTED_API = 0;
+    //    protected static final int ERROR_NETWORK = 1;
+    //    protected static final int ERROR_UNKNOWN = 2;
+    //    protected static final int ERROR_REMOTE_SERVER = 3;
+    //    public static final String TAG = "AsyncTaskRunner";
+//
+    //    private static final Executor THREAD_POOL_EXECUTOR =
+    //            new ThreadPoolExecutor(5, 128, 1,
+    //                    TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+//
+    //    private final Handler mHandler = new Handler(Looper.getMainLooper());
+    //    private boolean mIsInterrupted = false;
+//
+    //    protected void onPreExecute(){}
+    //    protected abstract Integer doInBackground(Params... params);
+    //    protected abstract void onPostExecute();
+    //    protected abstract void quit();
+//
+    //    protected abstract void reportAction();
+    //    protected abstract void retryAction();
+//
+    //    protected abstract void showAlert(AlertDialog new_alert);
+    //    protected AlertDialog.Builder buildErrorDialog(final int error, final Context context) {
+    //        final AlertDialog.Builder alert_builder = new AlertDialog.Builder(context);
+    //        alert_builder.setCancelable(false);
+    //        alert_builder.setPositiveButton("Quit",
+    //                (dialog, which) -> quit());
+//
+    //        switch (error) {
+    //            case ERROR_NETWORK:
+    //            case ERROR_UNKNOWN:
+    //            case ERROR_REMOTE_SERVER:
+    //                alert_builder.setNeutralButton("Retry",
+    //                        (dialog, which) -> retryAction());
+    //        }
+//
+    //        switch (error) {
+    //            case ERROR_UNSUPPORTED_API:
+    //                alert_builder.setNeutralButton("Report",
+    //                        (dialog, which) -> reportAction());
+    //                alert_builder.setMessage("Please update the app. "
+    //                        + "The current Pandora API is unsupported.");
+    //                break;
+    //            case ERROR_NETWORK:
+    //                alert_builder.setMessage("A network error has occurred.");
+    //                break;
+    //            case ERROR_UNKNOWN:
+    //                alert_builder.setMessage("An unknown error has occurred.");
+    //                break;
+    //            case ERROR_REMOTE_SERVER:
+    //                alert_builder
+    //                        .setMessage("Pandora's servers are having troubles. "
+    //                                + "Try again later.");
+    //                break;
+    //        }
+//
+    //        return alert_builder;
+    //    }
+//
+    //    /**
+    //     * Description: A test to show off different exceptions.
+    //     * @throws RPCException
+    //     * @throws IOException
+    //     * @throws Exception
+    //     */
+    //    public void exceptionTest() throws RPCException,
+    //            IOException, Exception {
+    //        switch (1) {
+    //            case 0:
+    //                throw new RPCException(
+    //                        RPCException.API_VERSION_NOT_SUPPORTED,
+    //                        "Invalid API test");
+    //            case 2:
+    //                throw new IOException("IO exception test");
+    //            case 3:
+    //                throw new Exception("Generic exception test");
+    //        }
+    //    }
+//
+    //    /**
+    //     * Description: A handler that must be called when an RPCException
+    //     *  has occurred.
+    //     * @param e
+    //     * @return
+    //     */
+    //    protected int rpcExceptionHandler(final RPCException e) {
+    //        int success_flag = ERROR_UNKNOWN;
+    //        if (RPCException.URL_PARAM_MISSING_METHOD <= e.code
+    //                && e.code <= RPCException.API_VERSION_NOT_SUPPORTED) {
+    //            success_flag = ERROR_UNSUPPORTED_API;
+    //        } else if (e.code == RPCException.INTERNAL
+    //                || e.code == RPCException.MAINTENANCE_MODE) {
+    //            success_flag = ERROR_REMOTE_SERVER;
+    //        }
+//
+    //        return success_flag;
+    //    }
+//
+    //    /**
+    //     * Description: A handler that must be called when an IOException
+    //     *  has been encountered.
+    //     * @return
+    //     */
+    //    protected int ioExceptionHandler() {
+    //        return ERROR_NETWORK;
+    //    }
+//
+    //    /**
+    //     * Description: A handler that must be called when a generic Exception has
+    //     *  been encountered.
+    //     * @return
+    //     */
+    //    protected int generalExceptionHandler() {
+    //        return ERROR_UNKNOWN;
+    //    }
+    //    protected boolean getStatus(){
+    //        return true;
+    //    }
+    //    protected void onCancelled() {}
+//
+    //    @SafeVarargs
+    //    public final void execute(Params... params) {
+    //        THREAD_POOL_EXECUTOR.execute(() -> {
+    //            try {
+    //                checkInterrupted();
+    //                mHandler.post(this::onPreExecute);
+//
+    //                checkInterrupted();
+    //                doInBackground(params);
+//
+    //                checkInterrupted();
+    //                onPostExecute();
+    //                //mHandler.post(this::onPostExecute);
+    //            } catch (InterruptedException ex) {
+    //                mHandler.post(this::onCancelled);
+    //            } catch (Exception ex) {
+    //                Log.e(TAG, "executeAsync: " + ex.getMessage() + "\n");
+    //            }
+    //        });
+    //    }
+//
+    //    private void checkInterrupted() throws InterruptedException {
+    //        if (isInterrupted()){
+    //            throw new InterruptedException();
+    //        }
+    //    }
+//
+    //    public void cancel(boolean mayInterruptIfRunning){
+    //        setInterrupted(mayInterruptIfRunning);
+    //    }
+//
+    //    public boolean isInterrupted() {
+    //        return mIsInterrupted;
+    //    }
+//
+    //    public void setInterrupted(boolean interrupted) {
+    //        mIsInterrupted = interrupted;
+    //    }
+    //}
     
     /**
      * Description: An abstract asynchronous task for doing a generic login. 
      * @param <Params> -Parameters specific for the doInBackground() execution.
      */
-    public abstract static class ServerAsyncTask<Params> extends AsyncTask<Params, 
-                                                                           Void, 
+    public abstract static class ServerAsyncTask<Params> extends AsyncTask<Params,
+                                                                           Void,
                                                                            Integer> {
         protected static final int ERROR_UNSUPPORTED_API = 0;
         protected static final int ERROR_NETWORK = 1;
@@ -654,17 +834,17 @@ public class PandoraRadioService extends Service {
          * Description: The required AsyncTask.doInBackground() function.
          */
         protected abstract Integer doInBackground(Params... args);
-        
+
         protected abstract void quit();
-        
+
         protected abstract void reportAction();
-        
+
         /**
          * Description: A function that specifies the action to be taken
          *  when a user clicks the retry button in an alert dialog.
          */
         protected abstract void retryAction();
-        
+
         protected abstract void showAlert(AlertDialog new_alert);
 
         /**
@@ -731,7 +911,7 @@ public class PandoraRadioService extends Service {
         }
 
         /**
-         * Description: A handler that must be called when an RPCException 
+         * Description: A handler that must be called when an RPCException
          *  has occurred.
          * @param e
          * @return
