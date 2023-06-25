@@ -12,11 +12,11 @@ ext.minimumSdkVersion = 21
 android {
     namespace "com.pandoroid"
     compileSdkVersion(34)
-    buildToolsVersion '30.0.3'
+    buildToolsVersion '34.0.0'
     defaultConfig{
         applicationId 'com.pandoroid'
         minSdkVersion 28
-        targetSdkVersion 34
+        targetSdkVersion 31
         versionCode 19
         versionName generateVersionName()
     }
