@@ -10,12 +10,13 @@ ext.isSnapshot = true
 ext.minimumSdkVersion = 21
 
 android {
-    compileSdkVersion(32)
+    compileSdkVersion(34)
+    namespace "com.pandoroid"
     buildToolsVersion '30.0.3'
     defaultConfig{
         applicationId 'com.pandoroid'
         minSdkVersion 24
-        targetSdkVersion 32
+        targetSdkVersion 34
         versionCode 19
         versionName generateVersionName()
     }
@@ -56,7 +57,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.2.1'
+        classpath 'com.android.tools.build:gradle:8.0.2'
     }
 }
 
@@ -68,13 +69,15 @@ allprojects {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.4.2'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
-    implementation 'androidx.core:core:1.8.0'
+    implementation 'androidx.core:core:1.10.1'
     implementation 'androidx.media:media:1.6.0'
     implementation 'androidx.preference:preference:1.2.0'
-    implementation 'com.squareup.okhttp3:okhttp:4.10.0'
-    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'com.squareup.okhttp3:okhttp:5.0.0-alpha.11'
+    implementation 'commons-io:commons-io:2.13.0'
+    // Fix Duplicate class
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.0"))
 }
 
 private Integer generateVersionCode() {

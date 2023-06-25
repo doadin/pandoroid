@@ -173,38 +173,38 @@ public class PandoraRadioService extends Service {
         }
 
         // Register the listener with the telephony manager
-        telephonyManager.listen(new PhoneStateListener() {
-            boolean pausedForRing = false;
-            @Override
-            public void onCallStateChanged(final int state, final String incomingNumber) {
-                Log.i("pandoroid telephony", "State changed: " + state);
-                switch(state) {
-
-                case TelephonyManager.CALL_STATE_IDLE:
-                    Log.d("DEBUG", "***********IDLE********");
-                    if(pausedForRing && m_song_playback != null) {
-                        if(m_prefs.getBoolean("behave_resumeOnHangup", true)) {
-                            if(m_song_playback != null && !m_paused){
-                                m_song_playback.play();
-                            }
-                        }
-                    }
-
-                    pausedForRing = false;
-                    break;
-
-                case TelephonyManager.CALL_STATE_OFFHOOK:
-                case TelephonyManager.CALL_STATE_RINGING:
-                    Log.d("DEBUG", "***********RINGING********");
-                    if(m_song_playback != null) {
-                        m_song_playback.pause();
-                    }
-
-                    pausedForRing = true;
-                    break;
-                }
-            }
-        }, PhoneStateListener.LISTEN_CALL_STATE);
+        //telephonyManager.listen(new PhoneStateListener() {
+        //    boolean pausedForRing = false;
+        //    @Override
+        //    public void onCallStateChanged(final int state, final String incomingNumber) {
+        //        Log.i("pandoroid telephony", "State changed: " + state);
+        //        switch(state) {
+//
+        //        case TelephonyManager.CALL_STATE_IDLE:
+        //            Log.d("DEBUG", "***********IDLE********");
+        //            if(pausedForRing && m_song_playback != null) {
+        //                if(m_prefs.getBoolean("behave_resumeOnHangup", true)) {
+        //                    if(m_song_playback != null && !m_paused){
+        //                        m_song_playback.play();
+        //                    }
+        //                }
+        //            }
+//
+        //            pausedForRing = false;
+        //            break;
+//
+        //        case TelephonyManager.CALL_STATE_OFFHOOK:
+        //        case TelephonyManager.CALL_STATE_RINGING:
+        //            Log.d("DEBUG", "***********RINGING********");
+        //            if(m_song_playback != null) {
+        //                m_song_playback.pause();
+        //            }
+//
+        //            pausedForRing = true;
+        //            break;
+        //        }
+        //    }
+        //}, PhoneStateListener.LISTEN_CALL_STATE);
         
         m_music_intent_receiver = new MusicIntentReceiver();
         this.registerReceiver(m_music_intent_receiver, 
