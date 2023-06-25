@@ -17,6 +17,7 @@ package com.pandoroid;
 
 import okhttp3.Call;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 
@@ -269,8 +270,9 @@ public class ImageDownloader {
                     url = "http:\\" + url;
                 }
                 Request request = new Request.Builder()
-                        .addHeader("Connection","close")
+                        //.addHeader("Connection","close")
                         .url(url)
+                        //.protocols(ListBuffer(Protocol.HTTP_2))
                         //.post(body)
                         //.addHeader("Content-Type", "application/json; charset=utf-8")
                         //.addHeader("User-Agent", user_agent) //Notice this request has header if you don't need to send a header just erase this part
@@ -280,6 +282,7 @@ public class ImageDownloader {
                 Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + response.networkResponse());
                 Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + response.headers());
                 InputStream content = response.body().byteStream();
+                response.close();
                 Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + url);
                 if (response.code() == 200) {
                     Log.i("Pandoroid", "200 url for Bitmap in ImageDownloader." + url);}

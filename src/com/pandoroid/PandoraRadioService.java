@@ -27,18 +27,17 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 //import android.graphics.BitmapFactory;
 import android.media.AudioManager;
+import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.net.ConnectivityManager;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
+import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
-import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.util.Log;
@@ -61,10 +60,6 @@ import com.pandoroid.playback.OnPlaybackHaltedListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 
@@ -179,6 +174,19 @@ public class PandoraRadioService extends Service {
             Log.e("Pandoroid", "Error Acquiring WakeLock");
         }
 
+        //if(ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+            //if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            //    TelephonyManager telephony = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
+            //    TelephonyCallback MyPhoneStateListener = new TelephonyCallback(){
+            //        @Override
+            //        public void callStateChanged(int state) {
+            //            int myState=state;
+            //        }
+            //    };
+            //    telephony.registerTelephonyCallback(this.getMainExecutor(), MyPhoneStateListener);
+            //}
+        //}
+
         // Register the listener with the telephony manager
         //telephonyManager.listen(new PhoneStateListener() {
         //    boolean pausedForRing = false;
@@ -213,8 +221,6 @@ public class PandoraRadioService extends Service {
         //        }
         //    }
         //}, PhoneStateListener.LISTEN_CALL_STATE);
-
-
         m_music_intent_receiver = new MusicIntentReceiver();
         this.registerReceiver(m_music_intent_receiver,
                 new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY));
