@@ -45,11 +45,13 @@ jobs:
             ${{ github.workspace }}/build/outputs/apk/release/pandoroid-mips64-release-unsigned.apk
             ${{ github.workspace }}/build/outputs/apk/release/pandoroid-universal-release-unsigned.apk
             ${{ github.workspace }}/build/outputs/apk/release/pandoroid-x86-release-unsigned.apk
+            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-x86_64-release-unsigned.apk
             ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-arm64-v8a-debug.apk
             ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-armeabi-v7a-debug.apk
             ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-mips-debug.apk
             ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-mips64-debug.apk
             ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-universal-debug.apk
             ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-x86-debug.apk
+            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-x86_64-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
