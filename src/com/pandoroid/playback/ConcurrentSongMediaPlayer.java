@@ -163,23 +163,32 @@ public class ConcurrentSongMediaPlayer{
      * Description: Checks to see if playback can be counted as complete.
      * @return A boolean of true if it's complete, else false.
      */
-    public boolean isPlaybackComplete(){
-        
+    public boolean isPlaybackComplete() {
+
         // The Android API's are borked in KitKat. It's better to simply not 
         // bother with it.
-        if (!isPlaying()){
+        if (!isPlaying()) {
+            //return true;
+        }
+        int song_length = 0;
+        int current_pos = 0;
+        if (m_player.isPlaying()) {
+            song_length = getDuration();
+            current_pos = getCurrentPosition();
+        }
+        //int song_length = getDuration();
+        //int current_pos = getCurrentPosition();
+        if (song_length == 0 && current_pos == 0 ){
             return true;
         }
-        int song_length = getDuration();
-        int current_pos = getCurrentPosition();
-        Log.i("Pandoroid", "isPlaybackComplete: " + "song length: " + song_length + " current pos: " + current_pos);
-
         double end_song_position = song_length * (MINIMUM_SONG_COMPLETENESS / 100F);
+        Log.i("Pandoroid", "isPlaybackComplete: " + "song length: " + song_length + " current pos: " + current_pos + " end_song_position: " + end_song_position);
 
-        return !(current_pos < end_song_position);
-        //if (current_pos < song_length){
-        //    return false;
-        //}
+        //return !(current_pos < end_song_position);
+        if (current_pos >= song_length){
+            return true;
+        }
+        return false;
     }
     
     /**

@@ -16,10 +16,12 @@
 package com.pandoroid;
 
 import okhttp3.Call;
+import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
+import okio.ByteString;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -32,6 +34,7 @@ import android.util.Log;
 import android.webkit.URLUtil;
 import android.widget.ImageView;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,9 +43,11 @@ import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This helper class download images from the Internet and binds those with the provided ImageView.
@@ -259,20 +264,26 @@ public class ImageDownloader {
          */
         @Override
         protected Bitmap doInBackground(String... params) {
-            final OkHttpClient client2;
-            client2 = new OkHttpClient();
-            client2.retryOnConnectionFailure();
+            final OkHttpClient client2 = new OkHttpClient.Builder()
+                    .readTimeout(1000, TimeUnit.MILLISECONDS)
+                    .writeTimeout(1000, TimeUnit.MILLISECONDS)
+                    .protocols(Arrays.asList(Protocol.HTTP_3, Protocol.HTTP_2, Protocol.HTTP_1_1))
+                    .connectTimeout(1000, TimeUnit.MILLISECONDS)
+                    .retryOnConnectionFailure(true)
+                    .build();
+            //final OkHttpClient client2;
+            //client2 = new OkHttpClient();
+            //client2.retryOnConnectionFailure();
             url = params[0];
             URI uri = URI.create(url);
             try {
                 //final URL url =  uri.toURL();
-                if (!URLUtil.isValidUrl(url)){
+                if (!URLUtil.isValidUrl(url)) {
                     url = "http:\\" + url;
                 }
                 Request request = new Request.Builder()
                         //.addHeader("Connection","close")
                         .url(url)
-                        //.protocols(ListBuffer(Protocol.HTTP_2))
                         //.post(body)
                         //.addHeader("Content-Type", "application/json; charset=utf-8")
                         //.addHeader("User-Agent", user_agent) //Notice this request has header if you don't need to send a header just erase this part
@@ -281,18 +292,29 @@ public class ImageDownloader {
                 Response response = call.execute();
                 Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + response.networkResponse());
                 Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + response.headers());
-                InputStream content = response.body().byteStream();
-                response.close();
+                //InputStream content = response.body().byteStream();
                 Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + url);
                 if (response.code() == 200) {
-                    Log.i("Pandoroid", "200 url for Bitmap in ImageDownloader." + url);}
-                if (response.code() == 401) {
-                    Log.i("Pandoroid", "error 401 for url for Bitmap in ImageDownloader." + url);}
-                final ByteArrayOutputStream dataStream = new ByteArrayOutputStream();
-
-                if (content != null) {
-                    return BitmapFactory.decodeStream(content);
+                    Log.i("Pandoroid", "200 url for Bitmap in ImageDownloader." + url);
                 }
+                if (response.code() == 401) {
+                    Log.i("Pandoroid", "error 401 for url for Bitmap in ImageDownloader." + url);
+                }
+
+                //if (content != null) {
+                Bitmap mIcon11 = null;
+                //Bitmap bitmap = null;
+                if (response.isSuccessful()) {
+                    try {
+                        //byte[] test = response.body().bytes();
+                        //bitmap = BitmapFactory.decodeByteArray(test, 0, test.length);
+                        mIcon11 = BitmapFactory.decodeStream(response.body().byteStream());
+                        response.body().byteStream().close();
+                    } catch (Exception e) {
+                        Log.e("Pandoroid", "Error for Bitmap in ImageDownloader." + url, e);
+                    }
+                }
+                return mIcon11;
 
             } catch (ProtocolException e){
                 Log.e("Pandoroid", "ProtocolException." + url);
@@ -306,7 +328,7 @@ public class ImageDownloader {
             } catch (Exception e) {
                 Log.e("Pandoroid", "Exception for Bitmap in ImageDownloader." + url, e);
             }
-            
+
             return null;
         }
 
