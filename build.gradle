@@ -16,7 +16,7 @@ android {
     defaultConfig{
         applicationId 'com.pandoroid'
         minSdkVersion 28
-        targetSdkVersion 31
+        targetSdkVersion 34
         versionCode 19
         versionName generateVersionName()
     }

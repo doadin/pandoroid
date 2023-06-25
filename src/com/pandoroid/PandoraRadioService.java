@@ -17,18 +17,22 @@
  */
 package com.pandoroid;
 
+import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 //import android.graphics.BitmapFactory;
+import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
+import android.Manifest;
 import android.net.ConnectivityManager;
 import android.os.AsyncTask;
 import android.os.Binder;
@@ -45,7 +49,9 @@ import android.view.KeyEvent;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import com.pandoroid.pandora.PandoraRadio;
 import com.pandoroid.pandora.RPCException;
@@ -335,10 +341,34 @@ public class PandoraRadioService extends Service {
     public void setListener(final Class<?> klass, final Object listener) {
         listeners.put(klass, listener);
     }
+    public Activity getActivity(Context context)
+    {
+        if (context == null)
+        {
+            return null;
+        }
+        else if (context instanceof ContextWrapper)
+        {
+            if (context instanceof Activity)
+            {
+                return (Activity) context;
+            }
+            else
+            {
+                return getActivity(((ContextWrapper) context).getBaseContext());
+            }
+        }
 
+        return null;
+    }
     public void setNotification() {
         try {
             final int mNotificationId = 0;
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(getActivity(this), new String[]{Manifest.permission.POST_NOTIFICATIONS},101);
+                }
+            }
 
             // The id of the group.
             String groupId = "pandoroid_01";
@@ -348,7 +378,7 @@ public class PandoraRadioService extends Service {
                     (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                notificationManager.createNotificationChannel(new NotificationChannel("default", groupName, NotificationManager.IMPORTANCE_HIGH));
+                notificationManager.createNotificationChannel(new NotificationChannel("default", groupName, NotificationManager.IMPORTANCE_LOW));
             }
 
             Song tmp_song;
