@@ -171,14 +171,14 @@ public class PandoraRadioService extends Service {
         final PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "Pandoroid:PandoraRadioServiceWakelock");
-        try {
-            if (!mWakeLock.isHeld()) {
-                Log.i("Pandoroid", "onCreate Acquiring WakeLock");
-                mWakeLock.acquire();
-            }
-        } catch (final Exception e) {
-            Log.e("Pandoroid", "Error Acquiring WakeLock");
-        }
+        //try {
+        //    if (!mWakeLock.isHeld()) {
+        //        Log.i("Pandoroid", "onCreate Acquiring WakeLock");
+        //        mWakeLock.acquire(10*60*1000L /*10 minutes*/);
+        //    }
+        //} catch (final Exception e) {
+        //    Log.e("Pandoroid", "Error Acquiring WakeLock");
+        //}
 
         //if(ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
             //if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -527,10 +527,13 @@ public class PandoraRadioService extends Service {
         m_song_playback.play();
         setNotification();
         if (mWakeLock.isHeld()) {
-            Log.i("Pandoroid", "WakeLock Already Active");
+            Log.i("Pandoroid", "play WakeLock Already Active re-acquiring");
+            mWakeLock.release();
+            mWakeLock.acquire(10*60*1000L /*10 minutes*/);
+            Log.i("Pandoroid", "play WakeLock Acquired");
         } else {
-            mWakeLock.acquire();
-            Log.i("Pandoroid", "WakeLock Acquired");
+            mWakeLock.acquire(10*60*1000L /*10 minutes*/);
+            Log.i("Pandoroid", "play WakeLock Acquired");
         }
     }
     
@@ -540,7 +543,7 @@ public class PandoraRadioService extends Service {
         //stopForeground(true);
         setNotification();
         if (mWakeLock.isHeld()) {
-            Log.i("Pandoroid", "WakeLock Active...releasing");
+            Log.i("Pandoroid", "pause WakeLock Active...releasing");
             mWakeLock.release();
         }
     }
@@ -602,7 +605,17 @@ public class PandoraRadioService extends Service {
         m_song_playback.skip();
     }
     
-    public void startPlayback(){        
+    public void startPlayback(){
+        Log.i("Pandoroid", "startPlayback running");
+        if (mWakeLock.isHeld()) {
+            Log.i("Pandoroid", "startPlayback WakeLock Already Active re-acquiring");
+            mWakeLock.release();
+            mWakeLock.acquire(10*60*1000L /*10 minutes*/);
+            Log.i("Pandoroid", "startPlayback WakeLock Acquired");
+        } else {
+            mWakeLock.acquire(10*60*1000L /*10 minutes*/);
+            Log.i("Pandoroid", "startPlayback WakeLock Acquired");
+        }
         if (m_song_playback != null){
             final Thread t = new Thread(m_song_playback);
             t.start();
@@ -614,6 +627,10 @@ public class PandoraRadioService extends Service {
             m_song_playback.stop();
         }
         stopForeground(true);
+        if (mWakeLock.isHeld()) {
+            Log.i("Pandoroid", "stopPlayback WakeLock Active releasing");
+            mWakeLock.release();
+        }
     }
     
     public abstract static class OnInvalidAuthListener{
