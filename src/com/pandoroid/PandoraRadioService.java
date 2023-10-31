@@ -443,7 +443,8 @@ public class PandoraRadioService extends Service {
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
             notificationManager.notify(mNotificationId, mBuilder.build());
         } catch (final Exception e) {
-            Log.i("Pandoroid", "Error Setting Notification");
+            Log.e("Pandoroid", "Error Setting Notification");
+            e.printStackTrace();
         }
         //}else{
         //    NotificationManager mNotifyMgr = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
