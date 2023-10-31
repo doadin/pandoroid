@@ -275,8 +275,9 @@ public class ImageDownloader {
             try {
                 //final URL url =  uri.toURL();
                 if (!URLUtil.isValidUrl(url)) {
-                    url = "http:\\" + url;
+                    url = "https:\\" + url;
                 }
+                url = url.replace("http://","https://");
                 Request request = new Request.Builder()
                         //.addHeader("Connection","close")
                         .url(url)
