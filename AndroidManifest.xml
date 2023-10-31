@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET"></uses-permission>
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"></uses-permission>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE"></uses-permission>
-    <uses-permission android:name="android.permission.WAKE_LOCK"></uses-permission>
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name="com.pandoroid.Pandoroid"
@@ -16,26 +16,24 @@
         android:supportsRtl="true">
         <activity
             android:name="com.pandoroid.PandoroidLogin"
-            android:label="pandoroid"
-            android:noHistory="false"></activity>
+            android:noHistory="false" />
         <activity
             android:name="com.pandoroid.PandoroidPlayer"
-            android:label="pandoroid"
             android:screenOrientation="fullSensor"
             android:theme="@style/PandoroidStartUpTheme"
             android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"></action>
-                <category android:name="android.intent.category.LAUNCHER"></category>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
             android:name="com.pandoroid.PandoroidStationSelect"
-            android:noHistory="false"></activity>
+            android:noHistory="false" />
         <activity
             android:name="com.pandoroid.PandoroidSettings"
-            android:noHistory="false"></activity>
+            android:noHistory="false" />
         <service
             android:name="com.pandoroid.PandoraRadioService"
             android:enabled="true"
@@ -55,7 +53,7 @@
         </receiver>
         <activity
             android:name="com.pandoroid.AboutDialog"
-            android:theme="@android:style/Theme.Dialog"></activity>
+            android:theme="@android:style/Theme.Dialog" />
     </application>
 
 </manifest>
