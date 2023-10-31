@@ -260,10 +260,11 @@ public class ImageDownloader {
         @Override
         protected Bitmap doInBackground(String... params) {
             final OkHttpClient client2 = new OkHttpClient.Builder()
-                    .readTimeout(1000, TimeUnit.MILLISECONDS)
-                    .writeTimeout(1000, TimeUnit.MILLISECONDS)
+                    .readTimeout(10000, TimeUnit.MILLISECONDS)
+                    .writeTimeout(10000, TimeUnit.MILLISECONDS)
                     .protocols(Arrays.asList(Protocol.HTTP_3, Protocol.HTTP_2, Protocol.HTTP_1_1))
-                    .connectTimeout(1000, TimeUnit.MILLISECONDS)
+                    //.protocols((List.of(Protocol.H2_PRIOR_KNOWLEDGE)))
+                    .connectTimeout(10000, TimeUnit.MILLISECONDS)
                     .retryOnConnectionFailure(true)
                     .build();
             //final OkHttpClient client2;
