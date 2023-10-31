@@ -366,7 +366,7 @@ public class PandoraRadioService extends Service {
             final int mNotificationId = 0;
             if (Build.VERSION.SDK_INT >= 33) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(getActivity(this), new String[]{Manifest.permission.POST_NOTIFICATIONS},101);
+                    //ActivityCompat.requestPermissions(getActivity(this), new String[]{Manifest.permission.POST_NOTIFICATIONS},101);
                 }
             }
 
