@@ -22,6 +22,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -31,7 +32,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
-import android.media.session.MediaSession;
+import androidx.media3.session.MediaSession;
 import android.Manifest;
 import android.net.ConnectivityManager;
 import android.os.AsyncTask;
@@ -52,6 +53,10 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentManager;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.session.MediaSessionService;
 
 import com.pandoroid.pandora.PandoraRadio;
 import com.pandoroid.pandora.RPCException;
@@ -59,6 +64,7 @@ import com.pandoroid.pandora.Song;
 import com.pandoroid.pandora.Station;
 import com.pandoroid.pandora.SubscriberTypeException;
 import com.pandoroid.playback.MediaPlaybackController;
+import com.pandoroid.playback.OnErrorListener;
 import com.pandoroid.playback.OnNewSongListener;
 import com.pandoroid.playback.OnPlaybackContinuedListener;
 import com.pandoroid.playback.OnPlaybackHaltedListener;
@@ -66,6 +72,7 @@ import com.pandoroid.playback.OnPlaybackHaltedListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Objects;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 
@@ -73,34 +80,35 @@ import static android.app.PendingIntent.FLAG_IMMUTABLE;
  * Description: Someone really needs to give this class some loving, document
  *  it up, organize it, and make it thread safe.
  */
-public class PandoraRadioService extends Service {
+public class PandoraRadioService extends MediaSessionService {
 
     private static final int NOTIFICATION_SONG_PLAYING = 1;
-    
+    private ExoPlayer mPlayer;
+    private MediaSession mMediaSession;
+    private MediaSessionCompat mMediaSessionCompat;
 
     
     // tools this service uses
     private PandoraRadio m_pandora_remote;
     public MediaPlaybackController m_song_playback;
+
     public ImageDownloader image_downloader;
-    
     private TelephonyManager telephonyManager;
     private ConnectivityManager connectivity_manager;
     private MusicIntentReceiver m_music_intent_receiver;
     private SharedPreferences m_prefs;
-    
+
     // tracking/organizing what we are doing
     private Station m_current_station;
     private String m_audio_quality;
     private boolean m_paused;
-    
+
     //We'll use this for now as the database implementation is garbage.
-    private ArrayList<Station> m_stations; 
+    private ArrayList<Station> m_stations;
     private final HashMap<Class<?>,Object> listeners = new HashMap<>();
 
     protected PandoraDB db;
 
-    
     // static usefullness
     private static Object lock = new Object();
     private static Object pandora_lock = new Object();
@@ -112,156 +120,129 @@ public class PandoraRadioService extends Service {
     private MediaSession mSession;
     private PowerManager.WakeLock mWakeLock;
 
-    //public MediaMetadataCompat updateMetadata() {
-    //    Song tmp_song;
-    //    tmp_song = m_song_playback.getSong();
-    //    Log.i("Pandoroid", "setNotification:" + tmp_song.getTitle() + " By " + tmp_song.getArtist());
-    //    MediaMetadataCompat.Builder metaData = new MediaMetadataCompat.Builder()
-    //    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, tmp_song.getTitle())
-    //    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, tmp_song.getArtist())
-    //    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, tmp_song.getAlbum())
-    //    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST, tmp_song.getArtist());
-    //    //.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, tmp_song.get)
-    //    //.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, tmp_song.)
-//
-    //    //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-    //    //    metaData.putLong(MediaMetadataCompat.METADATA_KEY_NUM_TRACKS, getCount());
-    //    //}
-    //    //mSession.setMetadata(metaData);
-    //    return metaData.build();
-    //    this.
-    //}
-
-    //Taken straight from the Android service reference
-    /**
-     * Class for clients to access.  Because we know this service always
-     * runs in the same process as its clients, we don't need to deal with
-     * IPC.
-     */
     public class PandoraRadioBinder extends Binder {
         PandoraRadioService getService() {
             return PandoraRadioService.this;
         }
     }
-    
+
     @Override
     public IBinder onBind(final Intent intent) {
+        super.onBind(intent);
         return mBinder;
     }
 
-    // This is the object that receives interactions from clients. 
     private final IBinder mBinder = new PandoraRadioBinder();
-    //End service reference
-    
-    
+
     @Override
     public void onCreate() {
+        super.onCreate();
+
+        // 1. Initialize ExoPlayer
+        mPlayer = new ExoPlayer.Builder(this).build();
+
+        // 2. Build the MediaSession
+        mMediaSession = new MediaSession.Builder(this, mPlayer).build();
+        mMediaSessionCompat = new MediaSessionCompat(this, "Pandoroid");
+        mSessionToken = mMediaSessionCompat.getSessionToken();
+        mMediaSessionCompat.setActive(true);
+
         m_paused = false;
         m_pandora_remote = new PandoraRadio();
         image_downloader = new ImageDownloader();
         m_stations = new ArrayList<>();
 
-
         connectivity_manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         m_prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
 
-        //m_player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-
         final PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "Pandoroid:PandoraRadioServiceWakelock");
-        //try {
-        //    if (!mWakeLock.isHeld()) {
-        //        Log.i("Pandoroid", "onCreate Acquiring WakeLock");
-        //        mWakeLock.acquire(10*60*1000L /*10 minutes*/);
-        //    }
-        //} catch (final Exception e) {
-        //    Log.e("Pandoroid", "Error Acquiring WakeLock");
-        //}
 
-        //if(ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-            //if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            //    TelephonyManager telephony = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
-            //    TelephonyCallback MyPhoneStateListener = new TelephonyCallback(){
-            //        @Override
-            //        public void callStateChanged(int state) {
-            //            int myState=state;
-            //        }
-            //    };
-            //    telephony.registerTelephonyCallback(this.getMainExecutor(), MyPhoneStateListener);
-            //}
-        //}
-
-        // Register the listener with the telephony manager
-        //telephonyManager.listen(new PhoneStateListener() {
-        //    boolean pausedForRing = false;
-//
-        //    //@Override
-        //    public void onCallStateChanged(final int state) {
-        //        Log.i("pandoroid telephony", "State changed: " + state);
-        //        switch (state) {
-//
-        //            case TelephonyManager.CALL_STATE_IDLE:
-        //                Log.d("DEBUG", "***********IDLE********");
-        //                if (pausedForRing && m_song_playback != null) {
-        //                    if (m_prefs.getBoolean("behave_resumeOnHangup", true)) {
-        //                        if (m_song_playback != null && !m_paused) {
-        //                            m_song_playback.play();
-        //                        }
-        //                    }
-        //                }
-//
-        //                pausedForRing = false;
-        //                break;
-//
-        //            case TelephonyManager.CALL_STATE_OFFHOOK:
-        //            case TelephonyManager.CALL_STATE_RINGING:
-        //                Log.d("DEBUG", "***********RINGING********");
-        //                if (m_song_playback != null) {
-        //                    m_song_playback.pause();
-        //                }
-//
-        //                pausedForRing = true;
-        //                break;
-        //        }
-        //    }
-        //}, PhoneStateListener.LISTEN_CALL_STATE);
         m_music_intent_receiver = new MusicIntentReceiver();
-        this.registerReceiver(m_music_intent_receiver,
-                new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY));
+        try {
+            this.registerReceiver(m_music_intent_receiver,
+                    new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY));
+        } catch (Exception e) {
+            Log.e("Pandoroid", "Error registering receiver", e);
+        }
+    }
+
+    // Media3 automatically queries this to connect clients/system controls
+    @Override
+    public MediaSession onGetSession(MediaSession.ControllerInfo controllerInfo) {
+        return mMediaSession;
     }
 
     @Override
-    public int onStartCommand(final Intent intent, final int flags, final int startId) {
-        return START_STICKY;
-    }
-    
     public void onDestroy() {
         if (m_song_playback != null){
             m_song_playback.stop();
         }
-        this.unregisterReceiver(m_music_intent_receiver);
+        if (m_music_intent_receiver != null) {
+            try {
+                this.unregisterReceiver(m_music_intent_receiver);
+            } catch (Exception e) {
+                // ignore
+            }
+        }
         stopForeground(true);
         final NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        mNotificationManager.cancel(1);
-        if (mWakeLock.isHeld()) {
-            Log.i("Pandoroid", "onTaskRemoved WakeLock is held, releasing");
+        if (mNotificationManager != null) {
+            mNotificationManager.cancel(1);
+        }
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            Log.i("Pandoroid", "onDestroy WakeLock is held, releasing");
             mWakeLock.release();
         }
-        final Intent resultIntent = new Intent(this, PandoraRadioService.class);
-        onTaskRemoved(resultIntent);
-        return;
+        if (mMediaSession != null) {
+            if (mMediaSession.getPlayer() != null) {
+                mMediaSession.getPlayer().release();
+            }
+            mMediaSession.release();
+            mMediaSession = null;
+        }
+        if (mMediaSessionCompat != null) {
+            mMediaSessionCompat.release();
+            mMediaSessionCompat = null;
+        }
+        super.onDestroy();
     }
 
     @Override
     public void onTaskRemoved(final Intent rootIntent) {
+        if (mMediaSession != null) {
+            Player player = mMediaSession.getPlayer();
+            // Stop service when task is removed if playback has stopped or paused
+            if (player != null && (!player.getPlayWhenReady() || player.getMediaItemCount() == 0)) {
+                stopSelf();
+            }
+        }
         final NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        mNotificationManager.cancel(1);
-        if (mWakeLock.isHeld()) {
+        if (mNotificationManager != null) {
+            mNotificationManager.cancel(1);
+        }
+        if (mWakeLock != null && mWakeLock.isHeld()) {
             Log.i("Pandoroid", "onTaskRemoved WakeLock is held, releasing");
             mWakeLock.release();
         }
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
+    public int onStartCommand(final Intent intent, final int flags, final int startId) {
+        if (intent != null && intent.getAction() != null) {
+            final String action = intent.getAction();
+            if ("ACTION_PLAY".equals(action)) {
+                play();
+            } else if ("ACTION_PAUSE".equals(action)) {
+                pause();
+            } else if ("ACTION_NEXT".equals(action)) {
+                skip();
+            }
+        }
+        return START_STICKY;
     }
     
     public Song getCurrentSong() throws Exception{
@@ -361,110 +342,137 @@ public class PandoraRadioService extends Service {
 
         return null;
     }
+
+    private static final int REQUEST_POST_NOTIFICATIONS = 1;
+
+    public void checkAndRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                setNotification();
+            } else {
+                Log.e("Pandoroid", "Notification permission not granted");
+            }
+        } else {
+            setNotification();
+        }
+    }
+
     public void setNotification() {
         try {
-            final int mNotificationId = 0;
+            final int mNotificationId = NOTIFICATION_SONG_PLAYING;
             if (Build.VERSION.SDK_INT >= 33) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    //ActivityCompat.requestPermissions(getActivity(this), new String[]{Manifest.permission.POST_NOTIFICATIONS},101);
+                    Log.e("Pandoroid", "Notification permission denied");
                 }
             }
 
-            // The id of the group.
-            String groupId = "pandoroid_01";
-            // The user-visible name of the group.
-            CharSequence groupName = "Pandoroid Notification Group";
-            NotificationManager notificationManager =
-                    (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-
+            NotificationManager notificationManager = null;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                notificationManager.createNotificationChannel(new NotificationChannel("default", groupName, NotificationManager.IMPORTANCE_LOW));
+                NotificationChannel channel = new NotificationChannel(
+                        "default",
+                        "Pandoroid Notification Group",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                );
+                notificationManager = getSystemService(NotificationManager.class);
+                if (notificationManager != null) {
+                    notificationManager.createNotificationChannel(channel);
+                }
+            } else {
+                notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             }
 
             Song tmp_song;
             tmp_song = m_song_playback.getSong();
+            if (tmp_song == null) {
+                return;
+            }
             Log.i("Pandoroid", "setNotification:" + " By Station ID " + tmp_song.getStationId());
             Log.i("Pandoroid", "setNotification:" + tmp_song.getTitle() + " By " + tmp_song.getArtist());
             final NotificationCompat.Builder mBuilder =
-                    (NotificationCompat.Builder) new NotificationCompat.Builder(Pandoroid.getContext(), "default");
-            //Bitmap largeIcon = BitmapFactory.decodeResource(getResources(), R.id.player_image);
-            //Bitmap largeIcon = ImageDownloader.getBitmapFromCachee(tmp_song.getAlbumCoverUrl());
+                    new NotificationCompat.Builder(this, "default");
             Log.i("Pandoroid", "setNotification:" + " By " + tmp_song.getAlbumCoverUrl());
+
+            // Define intents for actions
+            Intent playIntent = new Intent(this, NotificationActionReceiver.class).setAction("ACTION_PLAY");
+            Intent pauseIntent = new Intent(this, NotificationActionReceiver.class).setAction("ACTION_PAUSE");
+            Intent nextIntent = new Intent(this, NotificationActionReceiver.class).setAction("ACTION_NEXT");
+            PendingIntent playPendingIntent = PendingIntent.getBroadcast(this, 0, playIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
+            PendingIntent pausePendingIntent = PendingIntent.getBroadcast(this, 0, pauseIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
+            PendingIntent nextPendingIntent = PendingIntent.getBroadcast(this, 0, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
             if (m_paused)
                 mBuilder
-                        //.setLargeIcon(BitmapFactory.decodeStream(image_downloader)
-                        //.setLargeIcon(largeIcon)
                         .setSmallIcon(R.drawable.notification_icon)
                         .setOngoing(false)
                         .setShowWhen(false)
-                        //.addAction(android.R.drawable.ic_media_play, "Play", pendingIntentYes) // #0
-                        .addAction(generateAction(android.R.drawable.ic_media_play, "Play", KeyEvent.KEYCODE_MEDIA_PLAY))
-                        //.addAction(android.R.drawable.ic_media_next, "next", pendingIntentYes) // #1
-                        .addAction(generateAction(android.R.drawable.ic_media_next, "Next", KeyEvent.KEYCODE_MEDIA_NEXT))
+                        .addAction(android.R.drawable.ic_media_play, "Play", playPendingIntent)
+                        .addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent)
                         .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
-                                .setShowActionsInCompactView(0,1 /* #1: pause button */)
+                                .setShowActionsInCompactView(0, 1)
                                 .setMediaSession(mSessionToken)
                                 .setShowCancelButton(true)
-                                .setCancelButtonIntent(generateActionIntent(getApplicationContext(), KeyEvent.KEYCODE_MEDIA_STOP))
                         )
                         .setContentText(tmp_song.getArtist())
                         .setContentInfo(tmp_song.getAlbum())
                         .setContentTitle(tmp_song.getTitle())
-                        //.setDeleteIntent(MediaButtonReceiver.buildMediaButtonPendingIntent(getApplicationContext(),
-                        //        PlaybackStateCompat.ACTION_STOP))
-                        //.addAction(new NotificationCompat.Action(
-                        //        android.R.drawable.ic_media_play, "Play",
-                        //        MediaButtonReceiver.buildMediaButtonPendingIntent(getApplicationContext(),
-                        //                PlaybackStateCompat.ACTION_PLAY_PAUSE)))
+                        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
             if (!m_paused)
                 mBuilder
-                        //.setLargeIcon(m_service.image_downloader.download(song.getAlbumCoverUrl(), image))
-                        //.setLargeIcon(largeIcon)
                         .setSmallIcon(R.drawable.notification_icon)
-                        .setOngoing(false)
+                        .setOngoing(true)
                         .setShowWhen(false)
-                        //.addAction(android.R.drawable.ic_media_pause, "Pause", pendingIntentNo) // #0
-                        .addAction(generateAction(android.R.drawable.ic_media_pause, "Pause", KeyEvent.KEYCODE_MEDIA_PAUSE))
-                        //.addAction(android.R.drawable.ic_media_next, "next", pendingIntentYes) // #1
-                        .addAction(generateAction(android.R.drawable.ic_media_next, "Next", KeyEvent.KEYCODE_MEDIA_NEXT))
+                        .addAction(android.R.drawable.ic_media_pause, "Pause", pausePendingIntent)
+                        .addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent)
                         .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
-                                .setShowActionsInCompactView(0,1 /* #1: pause button */)
+                                .setShowActionsInCompactView(0, 1)
                                 .setMediaSession(mSessionToken))
                         .setContentText(tmp_song.getArtist())
                         .setContentInfo(tmp_song.getAlbum())
                         .setContentTitle(tmp_song.getTitle())
-                        //.setDeleteIntent(MediaButtonReceiver.buildMediaButtonPendingIntent(getApplicationContext(),
-                        //        PlaybackStateCompat.ACTION_STOP))
-                        //.addAction(new NotificationCompat.Action(
-                        //        android.R.drawable.ic_media_pause, "Pause",
-                        //        MediaButtonReceiver.buildMediaButtonPendingIntent(getApplicationContext(),
-                        //                PlaybackStateCompat.ACTION_PLAY_PAUSE)))
+                        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
-            notificationManager.notify(mNotificationId, mBuilder.build());
+
+            String coverUrl = tmp_song.getAlbumCoverUrl();
+            if (coverUrl != null && !coverUrl.isEmpty()) {
+                android.graphics.Bitmap cachedBitmap = image_downloader.getBitmap(coverUrl);
+                if (cachedBitmap != null) {
+                    mBuilder.setLargeIcon(cachedBitmap);
+                } else {
+                    image_downloader.downloadBitmapAsync(coverUrl, bitmap -> {
+                        if (bitmap != null) {
+                            mBuilder.setLargeIcon(bitmap);
+                            android.app.Notification notification = mBuilder.build();
+                            NotificationManager notificationManagerMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                            if (notificationManagerMgr != null) {
+                                notificationManagerMgr.notify(mNotificationId, notification);
+                            }
+                        }
+                    });
+                }
+            }
+
+            android.app.Notification notification = mBuilder.build();
+            if (notificationManager != null) {
+                notificationManager.notify(mNotificationId, notification);
+            }
+            startForeground(mNotificationId, notification);
         } catch (final Exception e) {
-            Log.e("Pandoroid", "Error Setting Notification");
+            Log.e("Pandoroid", "Error Setting Notification", e);
             e.printStackTrace();
         }
-        //}else{
-        //    NotificationManager mNotifyMgr = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        //    mNotifyMgr.cancel(001);
+    }
+    private NotificationCompat.Action generateAction(int icon, String title, PendingIntent intent) {
+        return new NotificationCompat.Action.Builder(icon, title, intent).build();
     }
 
-    private NotificationCompat.Action generateAction( final int icon, final String title, final int mediaKeyEvent) {
-        final PendingIntent pendingIntent = generateActionIntent(getApplicationContext(), mediaKeyEvent);
-        return new NotificationCompat.Action.Builder( icon, title, pendingIntent ).build();
-    }
-
-
-    private static PendingIntent generateActionIntent(final Context context, final int mediaKeyEvent)
-    {
-        final Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
-        intent.setPackage(context.getPackageName());
-        intent.putExtra(Intent.EXTRA_KEY_EVENT,
-                new KeyEvent(KeyEvent.ACTION_DOWN, mediaKeyEvent));
-        return PendingIntent.getBroadcast(context, mediaKeyEvent, intent, FLAG_IMMUTABLE);
-    }
+    //private static PendingIntent generateActionIntent(final Context context, final int mediaKeyEvent)
+    //{
+    //    final Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
+    //    intent.setPackage(context.getPackageName());
+    //    intent.putExtra(Intent.EXTRA_KEY_EVENT,
+    //            new KeyEvent(KeyEvent.ACTION_DOWN, mediaKeyEvent));
+    //    return PendingIntent.getBroadcast(context, mediaKeyEvent, intent, FLAG_IMMUTABLE);
+    //}
 
     public void signOut() {
         if(m_song_playback != null) {
@@ -550,7 +558,7 @@ public class PandoraRadioService extends Service {
     }
     
     public void rate(final String rating) {
-        if(rating == PandoroidPlayer.RATING_NONE) {
+        if(Objects.equals(rating, PandoroidPlayer.RATING_NONE)) {
             // cannot set rating to none
             return;
         }
@@ -638,7 +646,7 @@ public class PandoraRadioService extends Service {
         public abstract void onInvalidAuth();
     }
     
-    public class PlaybackOnErrorListener extends com.pandoroid.playback.OnErrorListener{
+    public class PlaybackOnErrorListener extends OnErrorListener{
         public void onError(final String error_message, 
                             final Throwable e, 
                             final boolean remote_error_flag,
@@ -661,7 +669,7 @@ public class PandoraRadioService extends Service {
         public static final String NO_ACTION = "NO_ACTION";
     }
 
-    public class MusicIntentReceiver extends android.content.BroadcastReceiver {
+    public class MusicIntentReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(final Context ctx, final Intent intent){
             final String action = intent.getAction();

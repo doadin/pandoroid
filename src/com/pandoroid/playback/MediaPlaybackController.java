@@ -45,7 +45,7 @@ import java.util.concurrent.TimeoutException;
  *  thread of execution.
  * @author Dylan Powers <dylan.kyle.powers@gmail.com>
  */
-public class MediaPlaybackController implements Runnable{   
+public class MediaPlaybackController implements Runnable{
     
     /* 
      * Public 
@@ -109,9 +109,26 @@ public class MediaPlaybackController implements Runnable{
         m_need_next_song = true;
         m_play_queue = new LinkedList<>();
         m_reset_player_flag = false;
+        m_active_player.isPlaying();
         
         Boolean alive = true;
         while(alive){
+            if (m_active_player.isPlaying()){
+                //String CP = String.valueOf(m_active_player.getCurrentPosition());
+                //String CD = String.valueOf(m_active_player.getDuration());
+                String CP = String.format("%d min, %d sec",
+                        TimeUnit.MILLISECONDS.toMinutes(m_active_player.getCurrentPosition()),
+                        TimeUnit.MILLISECONDS.toSeconds(m_active_player.getCurrentPosition()) -
+                                TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(m_active_player.getCurrentPosition()))
+                );
+                String CD = String.format("%d min, %d sec",
+                        TimeUnit.MILLISECONDS.toMinutes(m_active_player.getDuration()),
+                        TimeUnit.MILLISECONDS.toSeconds(m_active_player.getDuration()) -
+                                TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(m_active_player.getDuration()))
+                );
+                Log.i("Pandoroid", CP + "/" + CD + "possition duration");
+            }
+
             bufferUpdateLoop();
             
             //Prevent a null pointer exception in case an active network is not
@@ -169,6 +186,7 @@ public class MediaPlaybackController implements Runnable{
         }
         
         //Cleanup!
+        Log.i("Pandoroid", "run: m_active_player.release()");
         m_active_player.release();
         
         //This will clear our buffer sample queue. Although a race condition
@@ -177,11 +195,15 @@ public class MediaPlaybackController implements Runnable{
         //of little importance. The point is to keep the number of samples in 
         //the queue to a minimum so that when this is started up again, it
         //can do so as quickly as possible.
+        Log.i("Pandoroid", "run: m_buffer_sample_queue.clear()");
         m_buffer_sample_queue.clear();
-        
+
+        Log.i("Pandoroid", "run: m_play_queue.clear()");
         m_play_queue.clear();
+        Log.i("Pandoroid", "run: m_active_player.release()");
         m_valid_play_command_flag = false;
-        
+
+        Log.i("Pandoroid", "run: m_cached_player.release()");
         m_cached_player.release();
     }
     
@@ -448,6 +470,7 @@ public class MediaPlaybackController implements Runnable{
             BufferSample buffer_tmp = m_buffer_sample_queue.poll();
             int bitrate = 0;
             int length = 0;
+            assert buffer_tmp != null;
             if (buffer_tmp.m_session_id == active_song_id){
                 bitrate = m_active_player.getUrl().m_bitrate;
                 length = m_active_player.getDuration();
@@ -466,11 +489,9 @@ public class MediaPlaybackController implements Runnable{
                     else if (buffer_tmp.m_session_id == cached_song_id){
                         m_cached_player.m_buffer_complete_flag = true;
                     }
-                    if (Debug.DEBUG_LEVEL_FLAG >= Debug.LEVEL_LOW){
-                        Log.d("Pandoroid", "Media Id " + 
-                                           buffer_tmp.m_session_id +
-                                           " has finished downloading.");
-                    }
+                    Log.d("Pandoroid", "Media Id " +
+                            buffer_tmp.m_session_id +
+                            " has finished downloading.");
                 }
             }
             
@@ -506,34 +527,35 @@ public class MediaPlaybackController implements Runnable{
         }
             
         LinkedList<PandoraAudioUrl> urls = song.getSortedAudioUrls();
+        Log.d("Pandoroid", "urls: " + urls);
         for (int i = 0; i < urls.size(); ++i){
             PandoraAudioUrl tmp = urls.get(i);
 
-            try {
-                if (turbo_flag){
-                    if (PandoraRadio.audioQualityCompare(tmp.m_type, getMinQuality()) == 0){
-                        url = tmp;
-                        break;
-                    }
-                }
-                else if ((tmp.m_bitrate < bitrate 
-                            && 
-                         PandoraRadio.audioQualityCompare(tmp.m_type, getMaxQuality()) <= 0)
-                        ||
-                    (PandoraRadio.audioQualityCompare(tmp.m_type, getMinQuality()) == 0)
-                        ||
-                    (bitrate == 0 
-                            &&
-                        PandoraRadio.audioQualityCompare(tmp.m_type, getMaxQuality()) == 0)
-                   ){
-                    url = tmp;
-                    break;
-                }
-            } catch (Exception e) {
-                Log.e("Pandoroid", e.getMessage(), e);
-            }
+            //try {
+            //    if (turbo_flag){
+            //        if (PandoraRadio.audioQualityCompare(tmp.m_type, getMinQuality()) == 0){
+            //            url = tmp;
+            //            break;
+            //        }
+            //    }
+            //    else if ((tmp.m_bitrate < bitrate
+            //                &&
+            //             PandoraRadio.audioQualityCompare(tmp.m_type, getMaxQuality()) <= 0)
+            //            ||
+            //        (PandoraRadio.audioQualityCompare(tmp.m_type, getMinQuality()) == 0)
+            //            ||
+            //        (bitrate == 0
+            //                &&
+            //            PandoraRadio.audioQualityCompare(tmp.m_type, getMaxQuality()) == 0)
+            //       ){
+            //        url = tmp;
+            //        break;
+            //    }
+            //} catch (Exception e) {
+            //    Log.e("Pandoroid", e.getMessage(), e);
+            //}
         }
-
+        url = urls.get(0);
         if (url == null){
             url = new PandoraAudioUrl(getMaxQuality(), 0, song.getAudioUrl(getMaxQuality()));
             Log.e("Pandoroid", "Error acquiring a url for optimized playback. " +

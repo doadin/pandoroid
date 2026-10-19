@@ -92,14 +92,14 @@ public class MediaBandwidthEstimator {
                 session.queued_flag = true;
                 m_sum += bandwidth;
     
-                if (DEBUG_INFO == Debug.LEVEL_HIGH){
+                //if (DEBUG_INFO == Debug.LEVEL_HIGH){
                     Log.d("Pandoroid", 
                           "Media Id: " + audio_session_id + "    " +
                           "Buffer: " + buffer_position + "%    " +
                           "Bitrate: " + bandwidth + "kpbs    " +
                           "\nBandwidth Avg: " + getBitrate() + "kpbs"
                     );
-                }
+                //}
             }
         }
         else{

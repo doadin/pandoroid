@@ -1,6 +1,16 @@
 package com.pandoroid.playback;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 import com.pandoroid.Pandoroid;
 import com.pandoroid.pandora.PandoraAudioUrl;
@@ -16,9 +26,23 @@ import android.os.Build;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
-public class ConcurrentSongMediaPlayer{
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import okio.Buffer;
+import okio.BufferedSink;
+import okio.BufferedSource;
+import okio.ByteString;
+import okio.Okio;
+
+public class ConcurrentSongMediaPlayer {
     private SharedPreferences m_prefs;
     private Equalizer mEqualizer;
+    private File tempMp3;
     
     //A constant for setting the percentage of a song's total length that needs
     //to be played before it is determined as being effectively finished.
@@ -271,20 +295,46 @@ public class ConcurrentSongMediaPlayer{
      * @throws IllegalStateException
      * @throws IOException
      */
-    public void prepare(PandoraAudioUrl url) throws IllegalArgumentException, 
-                                                    SecurityException, 
-                                                    IllegalStateException, 
+    public void prepare(PandoraAudioUrl url) throws IllegalArgumentException,
+                                                    SecurityException,
+                                                    IllegalStateException,
                                                     IOException{
         m_url = url;
-        int prev_playback_pos = -1;
-        if (m_alive){
-            prev_playback_pos = getCurrentPosition();
-        }
+        int prev_playback_pos = m_alive ? getCurrentPosition() : -1;
         reset();
-        
-        synchronized(this){
-            m_player.setDataSource(url.toString());
-            //m_player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+
+        synchronized(this) {
+            final OkHttpClient client = new OkHttpClient.Builder()
+                    .readTimeout(60000, TimeUnit.MILLISECONDS)
+                    .writeTimeout(60000, TimeUnit.MILLISECONDS)
+                    .connectTimeout(60000, TimeUnit.MILLISECONDS)
+                    .protocols(Arrays.asList(Protocol.HTTP_2, Protocol.HTTP_1_1))
+                    .retryOnConnectionFailure(true)
+                    .build();
+
+            Request request = new Request.Builder()
+                    .addHeader("Connection", "close")
+                    .url(String.valueOf(url))
+                    .addHeader("User-Agent", "Pithos")
+                    .build();
+            Log.i("Pandoroid", String.valueOf(url));
+
+            tempMp3 = File.createTempFile("pandoroid", ".mp4");
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    throw new IOException("Unexpected response code: " + response.code());
+                }
+                ResponseBody responseBody = response.body();
+                if (responseBody == null) {
+                    throw new IOException("Response body is null");
+                }
+                try (BufferedSink sink = Okio.buffer(Okio.sink(tempMp3))) {
+                    responseBody.source().readAll(sink);
+                    sink.flush();
+                }
+            }
+
+            m_player.setDataSource(tempMp3.getAbsolutePath());
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 AudioAttributes aa = new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -295,21 +345,192 @@ public class ConcurrentSongMediaPlayer{
                 m_player.setAudioStreamType(AudioManager.STREAM_MUSIC);
             }
             m_player.prepare();
-            //if (prev_playback_pos > 0){
-            //    m_seeking_flag = true;
-            //    setOnSeekCompleteListener();
-            //    m_player.seekTo(prev_playback_pos);
-            //}
         }
         m_alive = true;
         setBuffering(false);
+
+        if (prev_playback_pos > 0) {
+            seekTo(prev_playback_pos);
+        }
     }
-    
+
+    public void startPlayAfterDownload() throws IOException {
+        synchronized(this){
+            if (tempMp3 != null && tempMp3.exists()) {
+                m_player.setDataSource(tempMp3.getAbsolutePath());
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    AudioAttributes aa = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build();
+                    m_player.setAudioAttributes(aa);
+                } else {
+                    m_player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                }
+                m_player.prepare();
+            }
+        }
+        //m_alive = true;
+        //setBuffering(false);
+    }
+
+
+    //public void prepare(PandoraAudioUrl url) throws IOException {
+    //    m_url = url;
+    //    int prev_playback_pos;
+//
+    //    if (m_alive) {
+    //        prev_playback_pos = getCurrentPosition();
+    //    } else {
+    //        prev_playback_pos = -1;
+    //    }
+//
+    //    if (m_player != null) {
+    //        if (m_player.isPlaying() || m_player.getCurrentPosition() > 0) {
+    //            Log.i("Pandoroid", "MediaPlayer already prepared, resuming...");
+    //            m_player.start();  // Resume playback if already prepared
+    //            return;
+    //        }
+    //        m_player.reset();
+    //    } else {
+    //        m_player = new MediaPlayer();
+    //    }
+//
+    //    synchronized (this) {
+    //        final OkHttpClient client = new OkHttpClient.Builder()
+    //                .readTimeout(60000, TimeUnit.MILLISECONDS)
+    //                .writeTimeout(60000, TimeUnit.MILLISECONDS)
+    //                .connectTimeout(60000, TimeUnit.MILLISECONDS)
+    //                .retryOnConnectionFailure(true)
+    //                .build();
+//
+    //        File tempMp3 = null;
+    //        int maxRetries = 3;
+    //        int attempt = 0;
+    //        long totalBytesRead = 0;
+    //        long contentLength = 0;
+    //        boolean downloadComplete = false;
+//
+    //        while (attempt < maxRetries) {
+    //            try {
+    //                tempMp3 = (tempMp3 == null) ? File.createTempFile("pandoroid", ".mp4") : tempMp3;
+    //                Log.i("Pandoroid", "Attempt #" + (attempt + 1));
+//
+    //                // Create request with Range header for resuming
+    //                Request.Builder requestBuilder = new Request.Builder()
+    //                        .url(String.valueOf(url))
+    //                        .addHeader("User-Agent", "Pithos");
+//
+    //                if (totalBytesRead > 0) {
+    //                    requestBuilder.addHeader("Range", "bytes=" + totalBytesRead + "-");
+    //                    Log.i("Pandoroid", "Resuming from byte " + totalBytesRead);
+    //                }
+//
+    //                Request request = requestBuilder.build();
+//
+    //                try (Response response = client.newCall(request).execute()) {
+    //                    if (!response.isSuccessful()) {
+    //                        Log.e("Pandoroid", "Request failed: " + response.code());
+    //                        return;
+    //                    }
+//
+    //                    ResponseBody responseBody = response.body();
+    //                    if (responseBody == null) {
+    //                        Log.e("Pandoroid", "Response body is null.");
+    //                        return;
+    //                    }
+//
+    //                    contentLength = responseBody.contentLength();
+    //                    Log.i("Pandoroid", "Expected Content-Length: " + contentLength);
+//
+    //                    try (BufferedSink sink = Okio.buffer(Okio.sink(new FileOutputStream(tempMp3, totalBytesRead > 0)));
+    //                         BufferedSource source = responseBody.source()) {
+//
+    //                        long bytesRead;
+    //                        Buffer buffer = new Buffer();
+//
+    //                        while ((bytesRead = source.read(buffer, 8192)) != -1) {
+    //                            sink.write(buffer, bytesRead);
+    //                            totalBytesRead += bytesRead;
+    //                            Log.i("Pandoroid", "Downloaded file size: " + totalBytesRead + " bytes");
+    //                        }
+//
+    //                        sink.flush();
+    //                        Log.i("Pandoroid", "Final downloaded size: " + totalBytesRead + " bytes");
+//
+    //                        if (totalBytesRead >= contentLength) {
+    //                            downloadComplete = true;
+    //                            break; // Exit retry loop
+    //                        }
+    //                    }
+    //                }
+    //            } catch (IOException e) {
+    //                Log.e("Pandoroid", "Download failed, retrying... Attempt: " + (attempt + 1));
+    //                attempt++;
+//
+    //                if (attempt == maxRetries) {
+    //                    Log.e("Pandoroid", "Max retries reached. Download failed.");
+    //                }
+    //            }
+    //        }
+//
+    //        if (!downloadComplete || tempMp3 == null || !tempMp3.exists() || tempMp3.length() == 0) {
+    //            Log.e("Pandoroid", "Download unsuccessful or file does not exist.");
+    //            return;
+    //        }
+//
+    //        if (m_player == null) {
+    //            Log.e("Pandoroid", "MediaPlayer is null, cannot proceed.");
+    //            return;
+    //        }
+//
+    //        // Ensure MediaPlayer is in a valid state
+    //        try {
+    //            m_player.setDataSource(tempMp3.getAbsolutePath());
+//
+    //            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+    //                AudioAttributes aa = new AudioAttributes.Builder()
+    //                        .setUsage(AudioAttributes.USAGE_MEDIA)
+    //                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+    //                        .build();
+    //                m_player.setAudioAttributes(aa);
+    //            } else {
+    //                m_player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+    //            }
+//
+    //            m_player.setOnPreparedListener(mp -> {
+    //                Log.i("Pandoroid", "MediaPlayer prepared, starting playback...");
+    //                m_player.start();
+    //                m_alive = true;
+    //                setBuffering(false);
+//
+    //                if (prev_playback_pos > 0) {
+    //                    Log.i("Pandoroid", "Seeking to previous position: " + prev_playback_pos);
+    //                    m_player.seekTo(prev_playback_pos);
+    //                }
+    //            });
+//
+    //            Log.i("Pandoroid", "Calling prepareAsync()");
+    //            m_alive = true;
+    //            setBuffering(false);
+    //            m_player.prepare(); // Ensure async preparation
+//
+    //        } catch (IOException e) {
+    //            Log.e("Pandoroid", "Error setting MediaPlayer data source: " + e.getMessage());
+    //        }
+    //    }
+    //}
+
     /**
      * Description: Synchronized method that releases the underlying MediaPlayer.
      */
     public void release(){
         synchronized(this){
+            //if (tempMp3 != null && tempMp3.exists()){
+            //    Log.i("Pandoroid", "Deleteing Temp File");
+            //    tempMp3.delete();
+            //}
+
             m_player.release();
         }
         m_alive = false;

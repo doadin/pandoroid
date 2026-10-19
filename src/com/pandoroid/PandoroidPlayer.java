@@ -206,39 +206,27 @@ public class PandoroidPlayer extends AppCompatActivity {
 
 
     public void controlButtonPressed(View button) {
-        switch (button.getId()) {
-        case R.id.player_ban:
+        int id = button.getId();
+        if (id == R.id.player_ban) {
             m_service.rate(RATING_BAN);
             Toast.makeText(getApplicationContext(),
                     getString(R.string.baned_song), Toast.LENGTH_SHORT).show();
             if (m_prefs.getBoolean("behave_nextOnBan", true)) {
                 m_service.skip();
             }
-            break;
-        /*case R.id.player_tempban:
-            m_service.sleepSong(RATING_TEMPBAN);
-            Toast.makeText(getApplicationContext(),
-                    getString(R.string.tempbaned_song), Toast.LENGTH_SHORT).show();
-            break;*/
-
-        case R.id.player_love:
+        } else if (id == R.id.player_love) {
             m_service.rate(RATING_LOVE);
             Toast.makeText(getApplicationContext(),
                     getString(R.string.loved_song), Toast.LENGTH_SHORT).show();
-            break;
-
-        case R.id.player_pause:
+        } else if (id == R.id.player_pause) {
             // Pause or play the song and update the button respectively
             ImageView pauseButton = (ImageView) findViewById(R.id.player_pause);
             if (m_service.playPause())
                 pauseButton.setImageResource(android.R.drawable.ic_media_pause);
             else
                 pauseButton.setImageResource(android.R.drawable.ic_media_play);
-            break;
-
-        case R.id.player_next:
+        } else if (id == R.id.player_next) {
             m_service.skip();
-            break;
         }
     }
 
@@ -284,13 +272,11 @@ public class PandoroidPlayer extends AppCompatActivity {
 
 
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-
-        case R.id.menu_stations:
+        int itemId = item.getItemId();
+        if (itemId == R.id.menu_stations) {
             spawnStationActivity();
             return true;
-
-        case R.id.menu_logout:
+        } else if (itemId == R.id.menu_logout) {
             m_service.signOut();
             SharedPreferences.Editor prefs_edit = m_prefs.edit();
             prefs_edit.remove("pandora_username");
@@ -301,17 +287,14 @@ public class PandoroidPlayer extends AppCompatActivity {
             dismissSongHaltedProgress();
             userLogin();
             return true;
-
-        case R.id.menu_settings:
+        } else if (itemId == R.id.menu_settings) {
             startActivity(new Intent(getApplicationContext(),
                     PandoroidSettings.class));
             return true;
-
-        case R.id.menu_about:
+        } else if (itemId == R.id.menu_about) {
             startActivity(new Intent(getApplicationContext(), AboutDialog.class));
             return true;
-
-        default:
+        } else {
             return super.onOptionsItemSelected(item);
         }
     }

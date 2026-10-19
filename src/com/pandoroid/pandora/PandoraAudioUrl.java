@@ -24,6 +24,9 @@ public class PandoraAudioUrl implements Comparable<PandoraAudioUrl>{
         if (is_AAC_64(extended_audio_url)){
             this.m_type = PandoraRadio.AAC_64;                  
         }
+        else if (is_AAC_32(extended_audio_url)){
+            this.m_type = PandoraRadio.AAC_32;
+        }
         else if (is_MP3_192(extended_audio_url)){
             this.m_type = PandoraRadio.MP3_192;
         }
@@ -43,6 +46,12 @@ public class PandoraAudioUrl implements Comparable<PandoraAudioUrl>{
     private boolean is_AAC_64(Map<String, Object> extended_audio_url){
         return (((String) extended_audio_url.get("bitrate")).compareTo("64") == 0
                                           &&
+                ((String) extended_audio_url.get("encoding")).compareTo("aacplus") == 0);
+    }
+
+    private boolean is_AAC_32(Map<String, Object> extended_audio_url){
+        return (((String) extended_audio_url.get("bitrate")).compareTo("32") == 0
+                &&
                 ((String) extended_audio_url.get("encoding")).compareTo("aacplus") == 0);
     }
     
