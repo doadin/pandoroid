@@ -20,8 +20,8 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.webkit.URLUtil;
 import android.widget.ImageView;
@@ -36,6 +36,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
@@ -243,106 +246,73 @@ public class ImageDownloader {
     }
 
     /**
-     * The actual AsyncTask that will asynchronously download the image.
+     * The actual asynchronous task that will download the image.
      */
-    static class BitmapDownloaderTask extends AsyncTask<String, Void, Bitmap> {
-        private static final int IO_BUFFER_SIZE = 4 * 1024;
+    static class BitmapDownloaderTask {
+        private static final Executor THREAD_POOL_EXECUTOR =
+                new ThreadPoolExecutor(5, 128, 1,
+                        TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+        private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
         private String url;
         private final WeakReference<ImageView> imageViewReference;
+        private boolean isCancelled = false;
 
         public BitmapDownloaderTask(ImageView imageView) {
             imageViewReference = new WeakReference<>(imageView);
         }
 
-        /**
-         * Actual download method.
-         */
-        @Override
+        public void cancel(boolean mayInterruptIfRunning) {
+            isCancelled = true;
+        }
+
+        public boolean isCancelled() {
+            return isCancelled;
+        }
+
+        public void execute(String... params) {
+            THREAD_POOL_EXECUTOR.execute(() -> {
+                if (isCancelled) return;
+                Bitmap bitmap = doInBackground(params);
+                if (isCancelled) return;
+                MAIN_HANDLER.post(() -> onPostExecute(bitmap));
+            });
+        }
+
         protected Bitmap doInBackground(String... params) {
             final OkHttpClient client2 = new OkHttpClient.Builder()
                     .readTimeout(10000, TimeUnit.MILLISECONDS)
                     .writeTimeout(10000, TimeUnit.MILLISECONDS)
-                    // Newer OkHTTP
-                    //.protocols(Arrays.asList(Protocol.HTTP_3, Protocol.HTTP_2, Protocol.HTTP_1_1))
                     .protocols(Arrays.asList(Protocol.HTTP_2, Protocol.HTTP_1_1))
-                    //.protocols((List.of(Protocol.H2_PRIOR_KNOWLEDGE)))
                     .connectTimeout(10000, TimeUnit.MILLISECONDS)
                     .retryOnConnectionFailure(true)
                     .build();
-            //final OkHttpClient client2;
-            //client2 = new OkHttpClient();
-            //client2.retryOnConnectionFailure();
             url = params[0];
-            URI uri = URI.create(url);
             try {
-                //final URL url =  uri.toURL();
                 if (!URLUtil.isValidUrl(url)) {
-                    url = "https:\\" + url;
+                    url = "https://" + url;
                 }
                 url = url.replace("http://","https://");
                 Request request = new Request.Builder()
                         .addHeader("Connection","close")
                         .url(url)
-                        //.post(body)
-                        //.addHeader("Content-Type", "application/json; charset=utf-8")
-                        //.addHeader("User-Agent", user_agent) //Notice this request has header if you don't need to send a header just erase this part
                         .addHeader("User-Agent", "pithos")
                         .build();
-                Call call = client2.newCall(request);
-                Response response = call.execute();
-                Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + response.networkResponse());
-                Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + response.headers());
-                //InputStream content = response.body().byteStream();
-                Log.i("Pandoroid", "url for Bitmap in ImageDownloader." + url);
-                if (response.code() == 200) {
-                    Log.i("Pandoroid", "200 url for Bitmap in ImageDownloader." + url);
-                }
-                if (response.code() == 401) {
-                    Log.i("Pandoroid", "error 401 for url for Bitmap in ImageDownloader." + url);
-                }
-
-                //if (content != null) {
-                Bitmap mIcon11 = null;
-                //Bitmap bitmap = null;
-                if (response.isSuccessful()) {
-                    try {
-                        //byte[] test = response.body().bytes();
-                        //bitmap = BitmapFactory.decodeByteArray(test, 0, test.length);
-                        mIcon11 = BitmapFactory.decodeStream(response.body().byteStream());
-                        //response.body().byteStream().close();
-                    } catch (Exception e) {
-                        Log.e("Pandoroid", "Error for Bitmap in ImageDownloader." + url, e);
+                try (Response response = client2.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        return BitmapFactory.decodeStream(response.body().byteStream());
                     }
                 }
-                response.close();
-                return mIcon11;
-
-            } catch (ProtocolException e){
-                Log.e("Pandoroid", "ProtocolException." + url);
-            } catch (MalformedURLException e){
-                Log.e("Pandoroid", "improper url for Bitmap in ImageDownloader." + url, e);
-            } catch (IOException e) {
-                Log.e("Pandoroid", "IOException for Bitmap in ImageDownloader." + url, e);
-                //e.printStackTrace();
-            } catch (OutOfMemoryError e) {
-                Log.e("Pandoroid", "OutOfMemoryError for Bitmap in ImageDownloader." + url, e);
             } catch (Exception e) {
-                Log.e("Pandoroid", "Exception for Bitmap in ImageDownloader." + url, e);
+                Log.e("Pandoroid", "Error downloading bitmap in ImageDownloader." + url, e);
             }
-
             return null;
         }
 
-        /**
-         * Once the image is downloaded, associates it to the imageView
-         */
-        @Override
         protected void onPostExecute(Bitmap bitmap) {
-            if (isCancelled()) {
+            if (isCancelled) {
                 bitmap = null;
             }
 
-            // Add bitmap to cache
             if (bitmap != null) {
                 synchronized (sHardBitmapCache) {
                     sHardBitmapCache.put(url, bitmap);
@@ -352,20 +322,11 @@ public class ImageDownloader {
             if (imageViewReference != null) {
                 ImageView imageView = imageViewReference.get();
                 BitmapDownloaderTask bitmapDownloaderTask = getBitmapDownloaderTask(imageView);
-                // Change bitmap only if this process is still associated with it
                 if (this == bitmapDownloaderTask) {
                     imageView.setImageBitmap(bitmap);
                 }
             }
         }
-
-        //public void copy(InputStream in, OutputStream out, long totalSize) throws IOException {
-        //    byte[] b = new byte[IO_BUFFER_SIZE];
-        //    int read;
-        //    while ((read = in.read(b)) != -1) {
-        //        out.write(b, 0, read);
-        //    }
-        //}
     }
 
     /**
@@ -413,19 +374,41 @@ public class ImageDownloader {
             if (listener != null) listener.onBitmapDownloaded(cached);
             return;
         }
-        new AsyncTask<String, Void, Bitmap>() {
-            @Override
-            protected Bitmap doInBackground(String... params) {
-                String originalUrl = params[0];
-                if (originalUrl == null) return null;
-                String targetUrl = originalUrl;
-                try {
-                    System.setProperty("java.net.preferIPv4Stack", "true");
-                    if (!URLUtil.isValidUrl(targetUrl)) {
-                        targetUrl = "https://" + targetUrl;
-                    }
-                    targetUrl = targetUrl.replace("http://", "https://");
+        BitmapDownloaderTask.THREAD_POOL_EXECUTOR.execute(() -> {
+            Bitmap bitmap = null;
+            String originalUrl = url;
+            String targetUrl = originalUrl;
+            try {
+                System.setProperty("java.net.preferIPv4Stack", "true");
+                if (!URLUtil.isValidUrl(targetUrl)) {
+                    targetUrl = "https://" + targetUrl;
+                }
+                targetUrl = targetUrl.replace("http://", "https://");
 
+                OkHttpClient client = new OkHttpClient.Builder()
+                        .connectTimeout(5, TimeUnit.SECONDS)
+                        .readTimeout(5, TimeUnit.SECONDS)
+                        .retryOnConnectionFailure(true)
+                        .build();
+                Request request = new Request.Builder()
+                        .addHeader("User-Agent", "pithos")
+                        .url(targetUrl).build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        bitmap = BitmapFactory.decodeStream(response.body().byteStream());
+                        if (bitmap != null) {
+                            synchronized (sHardBitmapCache) {
+                                sHardBitmapCache.put(targetUrl, bitmap);
+                                sHardBitmapCache.put(originalUrl, bitmap);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Error downloading bitmap (HTTPS): " + targetUrl, e);
+                // Fallback to original URL (e.g. HTTP)
+                try {
                     OkHttpClient client = new OkHttpClient.Builder()
                             .connectTimeout(5, TimeUnit.SECONDS)
                             .readTimeout(5, TimeUnit.SECONDS)
@@ -433,58 +416,29 @@ public class ImageDownloader {
                             .build();
                     Request request = new Request.Builder()
                             .addHeader("User-Agent", "pithos")
-                            .url(targetUrl).build();
+                            .url(originalUrl).build();
 
                     try (Response response = client.newCall(request).execute()) {
                         if (response.isSuccessful() && response.body() != null) {
-                            Bitmap bitmap = BitmapFactory.decodeStream(response.body().byteStream());
+                            bitmap = BitmapFactory.decodeStream(response.body().byteStream());
                             if (bitmap != null) {
                                 synchronized (sHardBitmapCache) {
-                                    sHardBitmapCache.put(targetUrl, bitmap);
                                     sHardBitmapCache.put(originalUrl, bitmap);
                                 }
                             }
-                            return bitmap;
                         }
                     }
-                } catch (Exception e) {
-                    Log.e(LOG_TAG, "Error downloading bitmap (HTTPS): " + targetUrl, e);
-                    // Fallback to original URL (e.g. HTTP)
-                    try {
-                        OkHttpClient client = new OkHttpClient.Builder()
-                                .connectTimeout(5, TimeUnit.SECONDS)
-                                .readTimeout(5, TimeUnit.SECONDS)
-                                .retryOnConnectionFailure(true)
-                                .build();
-                        Request request = new Request.Builder()
-                                .addHeader("User-Agent", "pithos")
-                                .url(originalUrl).build();
-
-                        try (Response response = client.newCall(request).execute()) {
-                            if (response.isSuccessful() && response.body() != null) {
-                                Bitmap bitmap = BitmapFactory.decodeStream(response.body().byteStream());
-                                if (bitmap != null) {
-                                    synchronized (sHardBitmapCache) {
-                                        sHardBitmapCache.put(originalUrl, bitmap);
-                                    }
-                                }
-                                return bitmap;
-                            }
-                        }
-                    } catch (Exception e2) {
-                        Log.e(LOG_TAG, "Error downloading bitmap fallback (HTTP): " + originalUrl, e2);
-                    }
+                } catch (Exception e2) {
+                    Log.e(LOG_TAG, "Error downloading bitmap fallback (HTTP): " + originalUrl, e2);
                 }
-                return null;
             }
-
-            @Override
-            protected void onPostExecute(Bitmap bitmap) {
+            final Bitmap finalBitmap = bitmap;
+            new Handler(Looper.getMainLooper()).post(() -> {
                 if (listener != null) {
-                    listener.onBitmapDownloaded(bitmap);
+                    listener.onBitmapDownloaded(finalBitmap);
                 }
-            }
-        }.execute(url);
+            });
+        });
     }
 
     public interface OnBitmapDownloadedListener {

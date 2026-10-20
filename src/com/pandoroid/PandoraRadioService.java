@@ -35,10 +35,11 @@ import android.media.MediaMetadata;
 import androidx.media3.session.MediaSession;
 import android.Manifest;
 import android.net.ConnectivityManager;
-import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.support.v4.media.MediaMetadataCompat;
@@ -47,6 +48,11 @@ import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.KeyEvent;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
@@ -685,218 +691,70 @@ public class PandoraRadioService extends MediaSessionService {
         }
     }
     
-    public class RateTask extends AsyncTask<String, Void, Void>{
-        public void onPreExecute(){
+    public class RateTask {
+        private Song m_song;
+
+        public void execute(final String... ratings) {
             try {
                 this.m_song = m_song_playback.getSong();
             } catch (final Exception e) {
                 Log.e("Pandoroid", "No song to rate.");
             }
-        }
-        public Void doInBackground(final String... ratings){
-            if (m_song != null){
-                final String rating = ratings[0];             
-                final boolean rating_bool = rating.equals(PandoroidPlayer.RATING_LOVE) ? true : false;
-                try {
-                    m_pandora_remote.rate(this.m_song, rating_bool);
-                    Log.i("Pandoroid", "A " + 
-                                       (rating_bool ? "thumbs up" : "thumbs down") +
-                                       " rating for the song " +
-                                       this.m_song.getTitle() +
-                                       " was successfully sent.");
-                //We'll have to do more later, but this works for now.
-//              } catch (HttpResponseException e) {
-//              } catch (RPCException e) {
-//              } catch (IOException e) {
-                } 
-                catch (final Exception e) {
-                    Log.e("Pandoroid", "Exception while sending a song rating.", e);
+            ServerAsyncTask.THREAD_POOL_EXECUTOR.execute(() -> {
+                if (m_song != null){
+                    final String rating = ratings[0];             
+                    final boolean rating_bool = rating.equals(PandoroidPlayer.RATING_LOVE);
+                    try {
+                        m_pandora_remote.rate(this.m_song, rating_bool);
+                        Log.i("Pandoroid", "A " + 
+                                           (rating_bool ? "thumbs up" : "thumbs down") +
+                                           " rating for the song " +
+                                           this.m_song.getTitle() +
+                                           " was successfully sent.");
+                    } catch (final Exception e) {
+                        Log.e("Pandoroid", "Exception while sending a song rating.", e);
+                    }
                 }
-            }
-            return null;
+            });
         }
-        
-        private Song m_song;
     }
 
-    //public abstract static class ServerAsyncTask<Params>{
-    //    protected static final int ERROR_UNSUPPORTED_API = 0;
-    //    protected static final int ERROR_NETWORK = 1;
-    //    protected static final int ERROR_UNKNOWN = 2;
-    //    protected static final int ERROR_REMOTE_SERVER = 3;
-    //    public static final String TAG = "AsyncTaskRunner";
-//
-    //    private static final Executor THREAD_POOL_EXECUTOR =
-    //            new ThreadPoolExecutor(5, 128, 1,
-    //                    TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
-//
-    //    private final Handler mHandler = new Handler(Looper.getMainLooper());
-    //    private boolean mIsInterrupted = false;
-//
-    //    protected void onPreExecute(){}
-    //    protected abstract Integer doInBackground(Params... params);
-    //    protected abstract void onPostExecute();
-    //    protected abstract void quit();
-//
-    //    protected abstract void reportAction();
-    //    protected abstract void retryAction();
-//
-    //    protected abstract void showAlert(AlertDialog new_alert);
-    //    protected AlertDialog.Builder buildErrorDialog(final int error, final Context context) {
-    //        final AlertDialog.Builder alert_builder = new AlertDialog.Builder(context);
-    //        alert_builder.setCancelable(false);
-    //        alert_builder.setPositiveButton("Quit",
-    //                (dialog, which) -> quit());
-//
-    //        switch (error) {
-    //            case ERROR_NETWORK:
-    //            case ERROR_UNKNOWN:
-    //            case ERROR_REMOTE_SERVER:
-    //                alert_builder.setNeutralButton("Retry",
-    //                        (dialog, which) -> retryAction());
-    //        }
-//
-    //        switch (error) {
-    //            case ERROR_UNSUPPORTED_API:
-    //                alert_builder.setNeutralButton("Report",
-    //                        (dialog, which) -> reportAction());
-    //                alert_builder.setMessage("Please update the app. "
-    //                        + "The current Pandora API is unsupported.");
-    //                break;
-    //            case ERROR_NETWORK:
-    //                alert_builder.setMessage("A network error has occurred.");
-    //                break;
-    //            case ERROR_UNKNOWN:
-    //                alert_builder.setMessage("An unknown error has occurred.");
-    //                break;
-    //            case ERROR_REMOTE_SERVER:
-    //                alert_builder
-    //                        .setMessage("Pandora's servers are having troubles. "
-    //                                + "Try again later.");
-    //                break;
-    //        }
-//
-    //        return alert_builder;
-    //    }
-//
-    //    /**
-    //     * Description: A test to show off different exceptions.
-    //     * @throws RPCException
-    //     * @throws IOException
-    //     * @throws Exception
-    //     */
-    //    public void exceptionTest() throws RPCException,
-    //            IOException, Exception {
-    //        switch (1) {
-    //            case 0:
-    //                throw new RPCException(
-    //                        RPCException.API_VERSION_NOT_SUPPORTED,
-    //                        "Invalid API test");
-    //            case 2:
-    //                throw new IOException("IO exception test");
-    //            case 3:
-    //                throw new Exception("Generic exception test");
-    //        }
-    //    }
-//
-    //    /**
-    //     * Description: A handler that must be called when an RPCException
-    //     *  has occurred.
-    //     * @param e
-    //     * @return
-    //     */
-    //    protected int rpcExceptionHandler(final RPCException e) {
-    //        int success_flag = ERROR_UNKNOWN;
-    //        if (RPCException.URL_PARAM_MISSING_METHOD <= e.code
-    //                && e.code <= RPCException.API_VERSION_NOT_SUPPORTED) {
-    //            success_flag = ERROR_UNSUPPORTED_API;
-    //        } else if (e.code == RPCException.INTERNAL
-    //                || e.code == RPCException.MAINTENANCE_MODE) {
-    //            success_flag = ERROR_REMOTE_SERVER;
-    //        }
-//
-    //        return success_flag;
-    //    }
-//
-    //    /**
-    //     * Description: A handler that must be called when an IOException
-    //     *  has been encountered.
-    //     * @return
-    //     */
-    //    protected int ioExceptionHandler() {
-    //        return ERROR_NETWORK;
-    //    }
-//
-    //    /**
-    //     * Description: A handler that must be called when a generic Exception has
-    //     *  been encountered.
-    //     * @return
-    //     */
-    //    protected int generalExceptionHandler() {
-    //        return ERROR_UNKNOWN;
-    //    }
-    //    protected boolean getStatus(){
-    //        return true;
-    //    }
-    //    protected void onCancelled() {}
-//
-    //    @SafeVarargs
-    //    public final void execute(Params... params) {
-    //        THREAD_POOL_EXECUTOR.execute(() -> {
-    //            try {
-    //                checkInterrupted();
-    //                mHandler.post(this::onPreExecute);
-//
-    //                checkInterrupted();
-    //                doInBackground(params);
-//
-    //                checkInterrupted();
-    //                onPostExecute();
-    //                //mHandler.post(this::onPostExecute);
-    //            } catch (InterruptedException ex) {
-    //                mHandler.post(this::onCancelled);
-    //            } catch (Exception ex) {
-    //                Log.e(TAG, "executeAsync: " + ex.getMessage() + "\n");
-    //            }
-    //        });
-    //    }
-//
-    //    private void checkInterrupted() throws InterruptedException {
-    //        if (isInterrupted()){
-    //            throw new InterruptedException();
-    //        }
-    //    }
-//
-    //    public void cancel(boolean mayInterruptIfRunning){
-    //        setInterrupted(mayInterruptIfRunning);
-    //    }
-//
-    //    public boolean isInterrupted() {
-    //        return mIsInterrupted;
-    //    }
-//
-    //    public void setInterrupted(boolean interrupted) {
-    //        mIsInterrupted = interrupted;
-    //    }
-    //}
-    
     /**
-     * Description: An abstract asynchronous task for doing a generic login. 
+     * Description: An abstract asynchronous task for doing generic server requests.
      * @param <Params> -Parameters specific for the doInBackground() execution.
      */
-    public abstract static class ServerAsyncTask<Params> extends AsyncTask<Params,
-                                                                           Void,
-                                                                           Integer> {
+    public abstract static class ServerAsyncTask<Params> {
         protected static final int ERROR_UNSUPPORTED_API = 0;
         protected static final int ERROR_NETWORK = 1;
         protected static final int ERROR_UNKNOWN = 2;
         protected static final int ERROR_REMOTE_SERVER = 3;
+        public static final String TAG = "AsyncTaskRunner";
 
+        public enum Status {
+            PENDING,
+            RUNNING,
+            FINISHED
+        }
 
-        /**
-         * Description: The required AsyncTask.doInBackground() function.
-         */
+        public static final Executor THREAD_POOL_EXECUTOR =
+                new ThreadPoolExecutor(5, 128, 1,
+                        TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+
+        private final Handler mHandler = new Handler(Looper.getMainLooper());
+        private boolean mIsInterrupted = false;
+        private Status mStatus = Status.PENDING;
+
+        public Status getStatus() {
+            return mStatus;
+        }
+
+        protected void onPreExecute() {}
+
         protected abstract Integer doInBackground(Params... args);
+
+        protected abstract void onPostExecute(Integer result);
+
+        protected void onCancelled() {}
 
         protected abstract void quit();
 
@@ -1008,6 +866,57 @@ public class PandoraRadioService extends MediaSessionService {
          */
         protected int generalExceptionHandler() {
             return ERROR_UNKNOWN;
+        }
+
+        @SafeVarargs
+        public final void execute(Params... params) {
+            if (mStatus == Status.RUNNING) {
+                return;
+            }
+            mStatus = Status.RUNNING;
+            THREAD_POOL_EXECUTOR.execute(() -> {
+                try {
+                    checkInterrupted();
+                    mHandler.post(this::onPreExecute);
+
+                    checkInterrupted();
+                    Integer result = doInBackground(params);
+
+                    checkInterrupted();
+                    mHandler.post(() -> {
+                        mStatus = Status.FINISHED;
+                        onPostExecute(result);
+                    });
+                } catch (InterruptedException ex) {
+                    mHandler.post(() -> {
+                        mStatus = Status.FINISHED;
+                        onCancelled();
+                    });
+                } catch (Exception ex) {
+                    Log.e(TAG, "executeAsync: " + ex.getMessage(), ex);
+                    mHandler.post(() -> {
+                        mStatus = Status.FINISHED;
+                    });
+                }
+            });
+        }
+
+        private void checkInterrupted() throws InterruptedException {
+            if (isInterrupted()){
+                throw new InterruptedException();
+            }
+        }
+
+        public void cancel(boolean mayInterruptIfRunning){
+            setInterrupted(mayInterruptIfRunning);
+        }
+
+        public boolean isInterrupted() {
+            return mIsInterrupted;
+        }
+
+        public void setInterrupted(boolean interrupted) {
+            mIsInterrupted = interrupted;
         }
     }
 }

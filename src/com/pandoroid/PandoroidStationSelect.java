@@ -24,7 +24,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
@@ -186,7 +185,7 @@ public class PandoroidStationSelect extends ListActivity {
         }
         else if (!m_stations_current_flag 
                  && (m_station_fetch_task == null
-                     || m_station_fetch_task.getStatus() == AsyncTask.Status.FINISHED)){
+                     || m_station_fetch_task.getStatus() == ServerAsyncTask.Status.FINISHED)){
             
             m_station_fetch_task = new StationFetcher();
             m_station_fetch_task.execute();
@@ -245,7 +244,7 @@ public class PandoroidStationSelect extends ListActivity {
         protected void retryAction(){
             if (!m_stations_current_flag 
                      && (m_station_fetch_task == null
-                         || m_station_fetch_task.getStatus() == AsyncTask.Status.FINISHED)){
+                         || m_station_fetch_task.getStatus() == ServerAsyncTask.Status.FINISHED)){
                 
                 m_station_fetch_task = new StationFetcher();
                 m_station_fetch_task.execute();
