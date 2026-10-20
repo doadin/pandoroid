@@ -39,7 +39,7 @@ jobs:
       - name: Run LS
         run: ls $GITHUB_WORKSPACE/build/outputs/apk/debug
       - name: Upload APK
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v7
         with:
           name: Pandoroid-${{ github.sha }}
           path: ${{ github.workspace }}/build/outputs/apk/debug/*.apk
