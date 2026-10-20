@@ -416,25 +416,64 @@ public class ImageDownloader {
         new AsyncTask<String, Void, Bitmap>() {
             @Override
             protected Bitmap doInBackground(String... params) {
-                String targetUrl = params[0];
+                String originalUrl = params[0];
+                if (originalUrl == null) return null;
+                String targetUrl = originalUrl;
                 try {
+                    System.setProperty("java.net.preferIPv4Stack", "true");
+                    if (!URLUtil.isValidUrl(targetUrl)) {
+                        targetUrl = "https://" + targetUrl;
+                    }
+                    targetUrl = targetUrl.replace("http://", "https://");
+
                     OkHttpClient client = new OkHttpClient.Builder()
-                            .connectTimeout(10, TimeUnit.SECONDS)
-                            .readTimeout(10, TimeUnit.SECONDS)
+                            .connectTimeout(5, TimeUnit.SECONDS)
+                            .readTimeout(5, TimeUnit.SECONDS)
+                            .retryOnConnectionFailure(true)
                             .build();
-                    Request request = new Request.Builder().url(targetUrl).build();
-                    Response response = client.newCall(request).execute();
-                    if (response.isSuccessful() && response.body() != null) {
-                        Bitmap bitmap = BitmapFactory.decodeStream(response.body().byteStream());
-                        if (bitmap != null) {
-                            synchronized (sHardBitmapCache) {
-                                sHardBitmapCache.put(targetUrl, bitmap);
+                    Request request = new Request.Builder()
+                            .addHeader("User-Agent", "pithos")
+                            .url(targetUrl).build();
+
+                    try (Response response = client.newCall(request).execute()) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            Bitmap bitmap = BitmapFactory.decodeStream(response.body().byteStream());
+                            if (bitmap != null) {
+                                synchronized (sHardBitmapCache) {
+                                    sHardBitmapCache.put(targetUrl, bitmap);
+                                    sHardBitmapCache.put(originalUrl, bitmap);
+                                }
                             }
+                            return bitmap;
                         }
-                        return bitmap;
                     }
                 } catch (Exception e) {
-                    Log.e(LOG_TAG, "Error downloading bitmap: " + targetUrl, e);
+                    Log.e(LOG_TAG, "Error downloading bitmap (HTTPS): " + targetUrl, e);
+                    // Fallback to original URL (e.g. HTTP)
+                    try {
+                        OkHttpClient client = new OkHttpClient.Builder()
+                                .connectTimeout(5, TimeUnit.SECONDS)
+                                .readTimeout(5, TimeUnit.SECONDS)
+                                .retryOnConnectionFailure(true)
+                                .build();
+                        Request request = new Request.Builder()
+                                .addHeader("User-Agent", "pithos")
+                                .url(originalUrl).build();
+
+                        try (Response response = client.newCall(request).execute()) {
+                            if (response.isSuccessful() && response.body() != null) {
+                                Bitmap bitmap = BitmapFactory.decodeStream(response.body().byteStream());
+                                if (bitmap != null) {
+                                    synchronized (sHardBitmapCache) {
+                                        sHardBitmapCache.put(originalUrl, bitmap);
+                                    }
+                                }
+                                return bitmap;
+                            }
+                        }
+                    } catch (Exception e2) {
+                        Log.e(LOG_TAG, "Error downloading bitmap fallback (HTTP): " + originalUrl, e2);
+                    }
                 }
                 return null;
             }

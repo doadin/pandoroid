@@ -19,5 +19,6 @@ public class Pandoroid extends Application {
     public void onCreate() {
         super.onCreate();
         sApplication = this;
+        System.setProperty("java.net.preferIPv4Stack", "true");
     }
 }

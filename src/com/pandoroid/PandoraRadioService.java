@@ -232,6 +232,7 @@ public class PandoraRadioService extends MediaSessionService {
 
     @Override
     public int onStartCommand(final Intent intent, final int flags, final int startId) {
+        super.onStartCommand(intent, flags, startId);
         if (intent != null && intent.getAction() != null) {
             final String action = intent.getAction();
             if ("ACTION_PLAY".equals(action)) {
