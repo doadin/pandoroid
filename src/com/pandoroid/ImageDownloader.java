@@ -26,12 +26,8 @@ import android.util.Log;
 import android.webkit.URLUtil;
 import android.widget.ImageView;
 
-import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -41,7 +37,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
 import okhttp3.Request;
@@ -62,7 +57,6 @@ public class ImageDownloader {
     private static final int DELAY_BEFORE_PURGE = 300 * 1000; // in milliseconds
 
     // Hard cache, with a fixed maximum capacity and a life duration
-    @SuppressWarnings("serial")
     private static final HashMap<String, Bitmap> sHardBitmapCache =
         new LinkedHashMap<String, Bitmap>(HARD_CACHE_CAPACITY / 2, 0.75f, true) {
         @Override
@@ -298,7 +292,7 @@ public class ImageDownloader {
                         .addHeader("User-Agent", "pithos")
                         .build();
                 try (Response response = client2.newCall(request).execute()) {
-                    if (response.isSuccessful() && response.body() != null) {
+                    if (response.isSuccessful()) {
                         return BitmapFactory.decodeStream(response.body().byteStream());
                     }
                 }
@@ -319,12 +313,10 @@ public class ImageDownloader {
                 }
             }
 
-            if (imageViewReference != null) {
-                ImageView imageView = imageViewReference.get();
-                BitmapDownloaderTask bitmapDownloaderTask = getBitmapDownloaderTask(imageView);
-                if (this == bitmapDownloaderTask) {
-                    imageView.setImageBitmap(bitmap);
-                }
+            ImageView imageView = imageViewReference.get();
+            BitmapDownloaderTask bitmapDownloaderTask = getBitmapDownloaderTask(imageView);
+            if (this == bitmapDownloaderTask) {
+                imageView.setImageBitmap(bitmap);
             }
         }
     }
@@ -358,25 +350,23 @@ public class ImageDownloader {
         }
         SoftReference<Bitmap> softRef = sSoftBitmapCache.get(url);
         if (softRef != null) {
-            Bitmap cached = softRef.get();
-            if (cached != null) return cached;
+            return softRef.get();
         }
         return null;
     }
 
-    public void downloadBitmapAsync(String url, final OnBitmapDownloadedListener listener) {
-        if (url == null) {
+    public void downloadBitmapAsync(String originalUrl, final OnBitmapDownloadedListener listener) {
+        if (originalUrl == null) {
             if (listener != null) listener.onBitmapDownloaded(null);
             return;
         }
-        Bitmap cached = getBitmap(url);
+        Bitmap cached = getBitmap(originalUrl);
         if (cached != null) {
             if (listener != null) listener.onBitmapDownloaded(cached);
             return;
         }
         BitmapDownloaderTask.THREAD_POOL_EXECUTOR.execute(() -> {
             Bitmap bitmap = null;
-            String originalUrl = url;
             String targetUrl = originalUrl;
             try {
                 System.setProperty("java.net.preferIPv4Stack", "true");
@@ -395,7 +385,7 @@ public class ImageDownloader {
                         .url(targetUrl).build();
 
                 try (Response response = client.newCall(request).execute()) {
-                    if (response.isSuccessful() && response.body() != null) {
+                    if (response.isSuccessful()) {
                         bitmap = BitmapFactory.decodeStream(response.body().byteStream());
                         if (bitmap != null) {
                             synchronized (sHardBitmapCache) {
@@ -419,7 +409,7 @@ public class ImageDownloader {
                             .url(originalUrl).build();
 
                     try (Response response = client.newCall(request).execute()) {
-                        if (response.isSuccessful() && response.body() != null) {
+                        if (response.isSuccessful()) {
                             bitmap = BitmapFactory.decodeStream(response.body().byteStream());
                             if (bitmap != null) {
                                 synchronized (sHardBitmapCache) {
