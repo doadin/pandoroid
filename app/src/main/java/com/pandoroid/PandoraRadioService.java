@@ -378,8 +378,9 @@ public class PandoraRadioService extends MediaSessionService {
                 NotificationChannel channel = new NotificationChannel(
                         "default",
                         "Pandoroid Notification Group",
-                        NotificationManager.IMPORTANCE_DEFAULT
+                        NotificationManager.IMPORTANCE_LOW
                 );
+                channel.setSound(null, null);
                 notificationManager = getSystemService(NotificationManager.class);
                 if (notificationManager != null) {
                     notificationManager.createNotificationChannel(channel);
