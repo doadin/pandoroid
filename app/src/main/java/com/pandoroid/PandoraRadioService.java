@@ -527,10 +527,10 @@ public class PandoraRadioService extends MediaSessionService {
         if (mWakeLock.isHeld()) {
             Log.i("Pandoroid", "play WakeLock Already Active re-acquiring");
             mWakeLock.release();
-            mWakeLock.acquire(10*60*1000L /*10 minutes*/);
+            mWakeLock.acquire();
             Log.i("Pandoroid", "play WakeLock Acquired");
         } else {
-            mWakeLock.acquire(10*60*1000L /*10 minutes*/);
+            mWakeLock.acquire();
             Log.i("Pandoroid", "play WakeLock Acquired");
         }
     }
