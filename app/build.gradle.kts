@@ -7,7 +7,7 @@ val minimumSdkVersion = 21
 
 
 plugins {
-    id("com.android.application")
+    alias(libs.plugins.android.application)
 }
 
 android {
@@ -27,21 +27,23 @@ android {
     }
 
     packaging {
-        resources.excludes += setOf(
-            "META-INF/DEPENDENCIES",
-            "META-INF/LICENSE",
-            "META-INF/LICENSE.txt",
-            "META-INF/license.txt",
-            "META-INF/NOTICE",
-            "META-INF/NOTICE.txt",
-            "META-INF/notice.txt",
-            "META-INF/ASL2.0"
-        )
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/license.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/notice.txt",
+                "META-INF/ASL2.0"
+            )
+        }
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     splits {
@@ -64,8 +66,6 @@ dependencies {
 
     implementation(libs.androidx.preference)
     implementation(libs.okhttp)
-
-    implementation(platform(libs.kotlin.bom))
 }
 
 fun generateVersionCode(): Int {

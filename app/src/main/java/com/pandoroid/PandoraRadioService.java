@@ -750,6 +750,7 @@ public class PandoraRadioService extends MediaSessionService {
 
         protected void onPreExecute() {}
 
+        @SuppressWarnings("unchecked")
         protected abstract Integer doInBackground(Params... args);
 
         protected abstract void onPostExecute(Integer result);
