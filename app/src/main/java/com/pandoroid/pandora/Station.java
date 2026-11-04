@@ -17,6 +17,7 @@
  */
 package com.pandoroid.pandora;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Vector;
@@ -25,6 +26,7 @@ import android.util.Log;
 
 
 public class Station implements Comparable<Station>, Serializable {
+    @Serial
     private static final long serialVersionUID = 1L;
     
     private final String id;
@@ -41,7 +43,8 @@ public class Station implements Comparable<Station>, Serializable {
         id = (String) d.get("stationId");
         idToken = (String) d.get("stationIdToken");
         //isCreator = (Boolean) d.get("isCreator");
-        isQuickMix = (Boolean) d.get("isQuickMix");
+        Boolean quickMix = (Boolean) d.get("isQuickMix");
+        isQuickMix = quickMix != null && quickMix;
         name = (String) d.get("stationName");
 
         pandora = instance;
