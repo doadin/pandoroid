@@ -30,21 +30,23 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/login_welcome"
         android:layout_centerHorizontal="true"
+        android:layout_marginTop="76dp"
         android:paddingTop="14dip"
-        android:text="@string/signin_username" />
+        android:text="@string/signin_username"
+        android:textColor="#000000" />
 
-    <EditText
-        android:id="@+id/login_username"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/login_txtUsername"
-        android:layout_marginTop="95dp"
-        android:importantForAutofill="no"
-        android:inputType="textEmailAddress"
-        android:maxLines="1"
-        android:textColor="#FFFFFF" />
+   <EditText
+       android:id="@+id/login_username"
+       android:layout_width="match_parent"
+       android:layout_height="wrap_content"
+       android:layout_below="@+id/login_txtUsername"
+       android:layout_marginTop="4dp"
+       android:importantForAutofill="no"
+       android:inputType="textEmailAddress"
+       android:maxLines="1"
+       android:textColor="#000000" />
 
-    <TextView
+   <TextView
         android:id="@+id/login_txtPassword"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -52,21 +54,21 @@
         android:layout_centerHorizontal="true"
         android:paddingTop="14dip"
         android:text="@string/signin_password"
-        android:textColor="#FFFFFF" />
+        android:textColor="#000000" />
 
-   <EditText
-       android:id="@+id/login_password"
-       android:layout_width="match_parent"
-       android:layout_height="wrap_content"
-       android:layout_below="@+id/login_txtPassword"
-       android:layout_marginTop="81dp"
-       android:autofillHints="password"
-       android:importantForAutofill="no"
-       android:inputType="textPassword"
-       android:maxLines="1"
-       android:textColor="#FFFFFF" />
+    <EditText
+        android:id="@+id/login_password"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/login_txtPassword"
+        android:layout_marginTop="6dp"
+        android:autofillHints="password"
+        android:importantForAutofill="no"
+        android:inputType="textPassword"
+        android:maxLines="1"
+        android:textColor="#000000" />
 
-   <Button
+    <Button
         android:id="@+id/login_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
