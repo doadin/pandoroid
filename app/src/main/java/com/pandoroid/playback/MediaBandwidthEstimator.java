@@ -76,15 +76,23 @@ public class MediaBandwidthEstimator {
             if (bandwidth >= 0){
                 if (session.queued_flag){
                     resetQueueFlags();
-                    if (m_bitrate_queue.size() == NUM_AVERAGED_DATA_POINTS){
-                        m_sum -= m_bitrate_queue.poll();
+                    if (m_bitrate_queue.size() == NUM_AVERAGED_DATA_POINTS) {
+                        Float value = m_bitrate_queue.poll();
+
+                        if (value != null) {
+                            m_sum -= value;
+                        }
                     }
                     m_bitrate_queue.add(bandwidth);
                 }
                 else{
                     float total_bandwidth = 0F;
-                    if (m_bitrate_queue.size() != 0){
-                        total_bandwidth = m_bitrate_queue.pollLast();
+                    if (!m_bitrate_queue.isEmpty()) {
+                        Float bandwidthValue = m_bitrate_queue.pollLast();
+
+                        if (bandwidthValue != null) {
+                            total_bandwidth = bandwidthValue;
+                        }
                     }
                     total_bandwidth += bandwidth;
                     m_bitrate_queue.add(total_bandwidth);
@@ -112,7 +120,7 @@ public class MediaBandwidthEstimator {
      * @return The average bitrate.
      */
     public int getBitrate(){
-        if (m_bitrate_queue.size() != 0){
+        if (!m_bitrate_queue.isEmpty()){
             return ((int) m_sum / m_bitrate_queue.size());
         }
         else{
@@ -123,7 +131,7 @@ public class MediaBandwidthEstimator {
     /**
      * Description: Checks to see if a media player exists in the current and
      *  for future bandwidth calculations.
-     * @param id
+     * @param id media session id
      * @return A boolean if the specified id does exist.
      */
     public boolean doesIdExist(int id){
@@ -176,7 +184,7 @@ public class MediaBandwidthEstimator {
      *  audio session.
      * @author Dylan Powers <dylan.kyle.powers@gmail.com>
      */
-    public class AudioSession{
+    public static class AudioSession{
         
         //Variable for whether or not a bitrate from this class has been added
         //into the top most position of the queue yet.
@@ -236,7 +244,7 @@ public class MediaBandwidthEstimator {
         
         /**
          * Description: Simple accessor to the id.
-         * @return
+         * @return m_id
          */
         public int getId(){
             return m_id;
