@@ -39,7 +39,7 @@ public class PandoroidLogin extends AppCompatActivity {
      * Activity start and end stuff
      */
     public void onCreate(Bundle savedInstanceState) {
-        setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light);
+        setTheme(androidx.appcompat.R.style.Theme_AppCompat);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.login);
 
