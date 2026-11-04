@@ -49,9 +49,6 @@ import com.pandoroid.playback.OnPlaybackContinuedListener;
 import com.pandoroid.playback.OnPlaybackHaltedListener;
 
 import java.io.IOException;
-import java.util.Objects;
-
-import static androidx.appcompat.R.style.Base_Theme_AppCompat_Light;
 
 public class PandoroidPlayer extends AppCompatActivity {
 
@@ -83,9 +80,8 @@ public class PandoroidPlayer extends AppCompatActivity {
      * Activity start and end specific stuff
      */
     public void onCreate(Bundle savedInstanceState) {
+        setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light);
         super.onCreate(savedInstanceState);
-
-        setTheme(Base_Theme_AppCompat_Light);
         setContentView(R.layout.player);
 
         m_prefs = PreferenceManager.getDefaultSharedPreferences(this);
@@ -401,14 +397,20 @@ public class PandoroidPlayer extends AppCompatActivity {
         ImageView image = (ImageView) findViewById(R.id.player_image);
 
         if (song != null){
-            Objects.requireNonNull(getSupportActionBar()).setTitle("" + song.getTitle());
+            setTitle("" + song.getTitle());
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle("" + song.getTitle());
+            }
             m_service.image_downloader.download(song.getAlbumCoverUrl(), image);
             top.setText(String.format("%s\n%s\n%s", "Artist: " + song.getArtist(), "Album: " + song.getAlbum(), "Station: " + m_service.getCurrentStation().getName()));
         }
         else{
             image.setImageResource(R.drawable.transparent);
             top.setText(R.string.loading);
-            Objects.requireNonNull(getSupportActionBar()).setTitle(R.string.app_name);
+            setTitle(R.string.app_name);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle(R.string.app_name);
+            }
         }
 
     }

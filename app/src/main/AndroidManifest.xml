@@ -13,6 +13,7 @@
         android:name="com.pandoroid.Pandoroid"
         android:icon="@drawable/icon"
         android:label="pandoroid"
+        android:theme="@style/Theme.AppCompat.Light"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">
         <activity
@@ -45,7 +46,7 @@
         <receiver android:name=".NotificationActionReceiver" />
         <activity
             android:name="com.pandoroid.AboutDialog"
-            android:theme="@android:style/Theme.Dialog" />
+            android:theme="@style/Theme.AppCompat.Light.Dialog" />
     </application>
 
 </manifest>

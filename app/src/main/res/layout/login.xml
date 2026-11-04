@@ -34,15 +34,15 @@
         android:text="@string/signin_username" />
 
     <EditText
-        android:inputType="textEmailAddress"
         android:id="@+id/login_username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/login_txtUsername"
-        android:layout_centerHorizontal="true"
+        android:layout_marginTop="95dp"
+        android:importantForAutofill="no"
+        android:inputType="textEmailAddress"
         android:maxLines="1"
-        android:textColor="#FFFFFF"
-        android:importantForAutofill="no" />
+        android:textColor="#FFFFFF" />
 
     <TextView
         android:id="@+id/login_txtPassword"
@@ -54,19 +54,19 @@
         android:text="@string/signin_password"
         android:textColor="#FFFFFF" />
 
-    <EditText
-        android:id="@+id/login_password"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/login_txtPassword"
-        android:layout_centerHorizontal="true"
-        android:inputType="textPassword"
-        android:maxLines="1"
-        android:textColor="#FFFFFF"
-        android:importantForAutofill="no"
-        android:autofillHints="password"/>
+   <EditText
+       android:id="@+id/login_password"
+       android:layout_width="match_parent"
+       android:layout_height="wrap_content"
+       android:layout_below="@+id/login_txtPassword"
+       android:layout_marginTop="81dp"
+       android:autofillHints="password"
+       android:importantForAutofill="no"
+       android:inputType="textPassword"
+       android:maxLines="1"
+       android:textColor="#FFFFFF" />
 
-    <Button
+   <Button
         android:id="@+id/login_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

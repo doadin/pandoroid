@@ -27,13 +27,12 @@ import android.text.method.LinkMovementMethod;
 import android.text.style.URLSpan;
 import android.util.Log;
 import android.widget.TextView;
-import static androidx.appcompat.R.style.Base_Theme_AppCompat_Light;
 
 public class AboutDialog extends AppCompatActivity {
 
     public void onCreate(Bundle savedInstanceState){
+        setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog);
         super.onCreate(savedInstanceState);
-        setTheme(Base_Theme_AppCompat_Light);
         setContentView(R.layout.about);
         String version_name = "";
         int build_num = 0;

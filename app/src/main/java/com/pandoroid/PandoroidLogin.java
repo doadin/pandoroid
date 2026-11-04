@@ -38,13 +38,16 @@ public class PandoroidLogin extends AppCompatActivity {
      * Activity start and end stuff
      */
     public void onCreate(Bundle savedInstanceState) {
-        //setTheme(R.style.Theme_AppCompat_Light);
+        setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.login);
         
         m_prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());  
 
-        getSupportActionBar().setTitle(R.string.signin_welcome);
+        setTitle(R.string.signin_welcome);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(R.string.signin_welcome);
+        }
         Button login_button = (Button) findViewById(R.id.login_button);     
         login_button.setOnClickListener(new SignInButtonClickListener());
         
