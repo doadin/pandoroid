@@ -72,7 +72,7 @@ public class RPC {
                        boolean require_secure) throws Exception,
             IOException{
 
-        if (url_params == null || url_params.size() == 0){
+        if (url_params == null || url_params.isEmpty()){
             throw new Exception("Missing URL paramaters");
         }
         if (entity_data == null){
@@ -113,7 +113,7 @@ public class RPC {
         Request request = new Request.Builder()
                 .url(full_url.concat(makeUrlParamString(url_params)))
                 .post(body)
-                .addHeader("Content-Type", "application/json; charset=utf-8")
+                //.addHeader("Content-Type", "application/json; charset=utf-8")
                 //.addHeader("User-Agent", user_agent) //Notice this request has header if you don't need to send a header just erase this part
                 .build();
 
