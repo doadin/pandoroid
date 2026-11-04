@@ -1,10 +1,13 @@
 package com.pandoroid.pandora;
 
+import java.io.Serial;
+
 public class RPCException extends Exception {
     
     /**
      * Eclipse auto-generated serialVersionUID
      */
+    @Serial
     private static final long serialVersionUID = 8390031994884654683L;
     
     /*Error code constants
