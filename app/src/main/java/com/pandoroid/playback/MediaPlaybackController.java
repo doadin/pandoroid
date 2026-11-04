@@ -19,12 +19,12 @@ package com.pandoroid.playback;
 
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import com.pandoroid.Debug;
 import com.pandoroid.pandora.PandoraAudioUrl;
 import com.pandoroid.pandora.PandoraRadio;
 import com.pandoroid.pandora.RPCException;
@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Exchanger;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.Locale;
 
 /**
  * Description: This is a controller for the playback of songs.
@@ -85,6 +86,21 @@ public class MediaPlaybackController implements Runnable{
         m_station_token = station_token;
         setAudioQuality(min_quality, max_quality);
     }
+
+    private boolean isNetworkConnected() {
+        Network network = m_net_conn.getActiveNetwork();
+
+        if (network == null) {
+            return false;
+        }
+
+        NetworkCapabilities capabilities =
+                m_net_conn.getNetworkCapabilities(network);
+
+        return capabilities != null
+                && capabilities.hasCapability(
+                NetworkCapabilities.NET_CAPABILITY_INTERNET);
+    }
     
     /**
      * Description: This is what the thread calls when started. It is the engine
@@ -93,9 +109,7 @@ public class MediaPlaybackController implements Runnable{
     public void run(){
         
         sendPlaybackHaltedNotification(HALT_STATE_PREPARING);
-        
-        NetworkInfo active_network_info;
-        
+
         instantiateInstance();
     
         
@@ -114,17 +128,22 @@ public class MediaPlaybackController implements Runnable{
         Boolean alive = true;
         while(alive){
             if (m_active_player.isPlaying()){
-                //String CP = String.valueOf(m_active_player.getCurrentPosition());
-                //String CD = String.valueOf(m_active_player.getDuration());
-                String CP = String.format("%d min, %d sec",
+                String CP = String.format(
+                        Locale.getDefault(),
+                        "%d min, %d sec",
                         TimeUnit.MILLISECONDS.toMinutes(m_active_player.getCurrentPosition()),
                         TimeUnit.MILLISECONDS.toSeconds(m_active_player.getCurrentPosition()) -
-                                TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(m_active_player.getCurrentPosition()))
+                                TimeUnit.MINUTES.toSeconds(
+                                        TimeUnit.MILLISECONDS.toMinutes(
+                                                m_active_player.getCurrentPosition()))
                 );
-                String CD = String.format("%d min, %d sec",
+                String CD = String.format(
+                        Locale.getDefault(),
+                        "%d min, %d sec",
                         TimeUnit.MILLISECONDS.toMinutes(m_active_player.getDuration()),
                         TimeUnit.MILLISECONDS.toSeconds(m_active_player.getDuration()) -
-                                TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(m_active_player.getDuration()))
+                                TimeUnit.MINUTES.toSeconds(
+                                        TimeUnit.MILLISECONDS.toMinutes(m_active_player.getDuration()))
                 );
                 Log.i("Pandoroid", CP + "/" + CD + "possition duration");
             }
@@ -133,8 +152,8 @@ public class MediaPlaybackController implements Runnable{
             
             //Prevent a null pointer exception in case an active network is not
             //available.
-            active_network_info = m_net_conn.getActiveNetworkInfo();
-            if (active_network_info != null && active_network_info.isConnected()){
+            Network activeNetwork = m_net_conn.getActiveNetwork();
+            if (isNetworkConnected()) {
                 if (m_playback_halted_reason == HALT_STATE_NO_NETWORK){
                     m_bandwidth.reset();
                     m_playback_halted_reason = HALT_STATE_CLEAR;
@@ -180,9 +199,13 @@ public class MediaPlaybackController implements Runnable{
             try {   
                 //Sleep for 1 second
                 alive = m_stop_exchanger.exchange(alive, 1, TimeUnit.SECONDS); 
-            } 
-            catch (InterruptedException | TimeoutException e) {} //We don't care
-            //Yes we do want this to happen
+            }
+            catch (TimeoutException e) {
+                // Expected. Just wake up and continue the loop.
+            }
+            catch (InterruptedException e) {
+                Log.e("Pandoroid", "Playback thread interrupted", e);
+            }
         }
         
         //Cleanup!
@@ -250,7 +273,7 @@ public class MediaPlaybackController implements Runnable{
      *  terms if the thread has been started and the stop command hasn't been 
      *  called. The majority of commands only have significance when this is 
      *  true.
-     * @return
+     * @return boolean
      */
     public boolean isAlive(){
         return m_alive;
@@ -291,8 +314,8 @@ public class MediaPlaybackController implements Runnable{
      *  station_token, and the updated PandoraRadio instance. Note that this
      *  doesn't actually start the controller back up. That must be done 
      *  externally.
-     * @param station_token
-     * @param pandora_remote
+     * @param station_token string
+     * @param pandora_remote PandoraRadio instance
      */
     public void reset(String station_token, PandoraRadio pandora_remote){
         Thread t = new Thread(new ResetThread(station_token, pandora_remote));
@@ -303,9 +326,9 @@ public class MediaPlaybackController implements Runnable{
      * Description: Sets the audio quality range to be played. Set both the same
      *  for constant quality playback. This is thread safe and can be called at
      *  any moment (the controller can be dead or alive).
-     * @param min_quality
-     * @param max_quality
-     * @throws Exception
+     * @param min_quality quality
+     * @param max_quality quality
+     * @throws Exception error
      */
     public void setAudioQuality(String min_quality, String max_quality) throws Exception{
         if (isValidAudioQualityRange(min_quality, max_quality)){
@@ -375,7 +398,7 @@ public class MediaPlaybackController implements Runnable{
      *  in.
      */
     public void stop(){
-        Thread t = new Thread(() -> stopTask());
+        Thread t = new Thread(this::stopTask);
         
         t.start();
     }
@@ -521,9 +544,7 @@ public class MediaPlaybackController implements Runnable{
         bitrate = m_bandwidth.getBitrate();
         boolean turbo_flag = m_turbo_mode.isTurbo();
         if (turbo_flag){
-            if (Debug.DEBUG_LEVEL_FLAG == Debug.LEVEL_HIGH){
-                Log.d("Pandoroid", "Turbo download mode enabled!");
-            }
+            Log.d("Pandoroid", "Turbo download mode enabled!");
         }
             
         LinkedList<PandoraAudioUrl> urls = song.getSortedAudioUrls();
@@ -575,7 +596,7 @@ public class MediaPlaybackController implements Runnable{
     
     /**
      * Description: Thread safe accessor for m_max_quality.
-     * @return
+     * @return string
      */
     private String getMaxQuality(){
         synchronized(quality_lock){
@@ -631,7 +652,9 @@ public class MediaPlaybackController implements Runnable{
         if (isAnotherInstanceRunning()){
             try {
                 m_playback_engine_thread.join();
-            } catch (InterruptedException e) {}
+            } catch (InterruptedException e) {
+                Log.e("Pandoroid", "Error m_playback_engine_thread.join", e);
+            }
         }
         m_playback_engine_thread = Thread.currentThread();
     }
@@ -653,13 +676,11 @@ public class MediaPlaybackController implements Runnable{
     /**
      * Description: Checks to make sure another thread doesn't exist with 
      *  the controller running.
-     * @return
+     * @return boolean
      */
     private boolean isAnotherInstanceRunning(){
         if (m_playback_engine_thread != null){
-            if (m_playback_engine_thread.isAlive()){
-                return true;
-            }
+            return m_playback_engine_thread.isAlive();
         }
         
         return false;
@@ -669,7 +690,7 @@ public class MediaPlaybackController implements Runnable{
     /**
      * Description: Checks to see if the play queue is low and should be 
      *  refilled.
-     * @return
+     * @return boolean
      */
     private boolean isPlayQueueLow(){
         return (m_play_queue.size() <= 1);
@@ -679,9 +700,9 @@ public class MediaPlaybackController implements Runnable{
      * Description: Checks to see if two given audio format strings are of a 
      *  valid quality range. This is false if min_quality is greater than
      *  max_quality.
-     * @param min_quality
-     * @param max_quality
-     * @return
+     * @param min_quality quality
+     * @param max_quality quality
+     * @return boolean
      * @throws Exception if the strings aren't audio_quality strings as defined
      *  by the constants in the class PandoraRadio.
      */
@@ -732,7 +753,7 @@ public class MediaPlaybackController implements Runnable{
                     sendPlaybackHaltedNotification(HALT_STATE_NO_INTERNET);
                     m_reset_player_flag = true;
                     m_need_next_song = false;
-                    Log.e("Pandoroid", e.getMessage());
+                    Log.e("Pandoroid", "Error IOException occurred", e);
                 }
             }
         }
@@ -756,7 +777,7 @@ public class MediaPlaybackController implements Runnable{
                 Log.e("Pandoroid", e.getMessage(), e);
                 m_cached_player.release();
             } catch (IOException e) {
-                Log.e("Pandoroid", e.getMessage());
+                Log.e("Pandoroid", "Error IOException occurred", e);
                 m_cached_player.release();
             }
         }
@@ -770,12 +791,10 @@ public class MediaPlaybackController implements Runnable{
         try{
             new_songs = m_pandora_remote.getPlaylist(m_station_token);
             Log.i("Pandoroid", "Playlist successfully acquired.");
-            for (int i = 0; i < new_songs.size(); ++i){
-                m_play_queue.add(new_songs.get(i));
-            }
+            m_play_queue.addAll(new_songs);
         }
         catch (RPCException e){
-            sendErrorNotification(e.getMessage(), e, true, e.code);
+            sendErrorNotification(e.getMessage(), e, e.code);
         }
         catch (Exception e){
             Log.e("Pandoroid", e.getMessage(), e);
@@ -817,7 +836,7 @@ public class MediaPlaybackController implements Runnable{
             } catch (IOException e) {
                 sendPlaybackHaltedNotification(HALT_STATE_NO_INTERNET);
                 m_reset_player_flag = true;
-                Log.e("Pandoroid", e.getMessage());
+                Log.e("Pandoroid", "Error HALT_STATE_NO_INTERNET occurred", e);
             }
         }
         else{
@@ -827,22 +846,20 @@ public class MediaPlaybackController implements Runnable{
     
     /**
      * Description: Sends an error notification to the main thread.
-     * @param error_message -A string with the error message.
-     * @param e -The error.
-     * @param remote_error_flag -Whether or not this is an error from the 
-     *  remote server.
+     *
+     * @param error_message  -A string with the error message.
+     * @param e              -The error.
      * @param rpc_error_code -If this is a remote server error, then this is
-     *  the Pandora RPC error affiliated with it. 
+     *                       the Pandora RPC error affiliated with it.
      */
     private void sendErrorNotification(String error_message,
                                        Throwable e,
-                                       boolean remote_error_flag,
                                        int rpc_error_code){
         Log.e("Pandoroid", error_message, e);
         Handler handler = new Handler(Looper.getMainLooper());
         SendErrorNotificationTask 
             task = new SendErrorNotificationTask(error_message, e,
-                                                 remote_error_flag,
+                true,
                                                  rpc_error_code);
         handler.post(task);
     }
@@ -903,7 +920,9 @@ public class MediaPlaybackController implements Runnable{
             m_alive = false;
             try {                   
                 m_stop_exchanger.exchange(false);
-            } catch (InterruptedException e) {}
+            } catch (InterruptedException e) {
+                Log.e("Pandoroid", "Error m_stop_exchanger.exchange", e);
+            }
         }
     }
     
@@ -911,7 +930,7 @@ public class MediaPlaybackController implements Runnable{
      * Description: Stores a buffer position with the time it was created, and
      *  a MediaPlayer session id it's affiliated with.
      */
-    private class BufferSample{
+    private static class BufferSample{
         public final int m_percent;
         public final int m_session_id;
         public final long m_time_stamp;
@@ -941,7 +960,7 @@ public class MediaPlaybackController implements Runnable{
             public void run(){
                 
                 //This is a hack for detecting when a stall out occurs that's
-                //usually connected to a prepare() immediately followed by a seekTo()
+                //usually connected to prepare() immediately followed by a seekTo()
                 //on the affiliated MediaPlayer. When this occurs, the MediaPlayer
                 //overzealously issues a few buffer updates while it's seeking 
                 //that must be ignored. This is one of the few predictable ways 
