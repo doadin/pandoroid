@@ -19,6 +19,8 @@
 package com.pandoroid;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.text.SpannableString;
@@ -35,10 +37,13 @@ public class AboutDialog extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.about);
         String version_name = "";
-        int build_num = 0;
+        long build_num = 0;
         try {
-            version_name = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-            build_num = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+            PackageInfo packageInfo =
+                    getPackageManager().getPackageInfo(getPackageName(), 0);
+
+            version_name = packageInfo.versionName;
+            build_num = packageInfo.getLongVersionCode();
         } catch (NameNotFoundException e) {
             Log.e("Pandoroid", "Version name or build number not found", e);
         }
