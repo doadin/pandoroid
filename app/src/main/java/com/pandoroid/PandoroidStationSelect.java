@@ -190,8 +190,8 @@ public class PandoroidStationSelect extends AppCompatActivity {
      */
     private void showStations(){
         ListView lv = getListView();
-        setListAdapter(new StationListAdapter(m_service.getStations(), 
-                                              PandoroidStationSelect.this));
+        setListAdapter(new StationListAdapter(m_service.getStations(),
+                PandoroidStationSelect.this));
         lv.setTextFilterEnabled(true);
         lv.setOnItemClickListener((parent, view, position, id) -> {
             String str_id = Long.toString(id);
@@ -223,7 +223,7 @@ public class PandoroidStationSelect extends AppCompatActivity {
         
         @Override
         protected Integer doInBackground(Void... void_params) {
-            Integer success_flag = -1;
+            int success_flag = -1;
             try {
                 m_service.updateStations();
             } catch (RPCException e) {
@@ -303,7 +303,7 @@ public class PandoroidStationSelect extends AppCompatActivity {
     }
     
     
-    private class StationListAdapter extends BaseAdapter {
+    private static class StationListAdapter extends BaseAdapter {
 
         private final List<Station> stations;
         private final Context context;
@@ -325,20 +325,33 @@ public class PandoroidStationSelect extends AppCompatActivity {
             return Long.parseLong(stations.get(position).getStationId());
         }
 
+        private static class ViewHolder {
+            TextView tvName;
+        }
+
+        @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            Station station = stations.get(position);
-            View itemLayout = LayoutInflater.from(context).inflate(R.layout.stations_item, 
-                                                                   parent, 
-                                                                   false);
-            
-            TextView tvName = (TextView) itemLayout.findViewById(R.id.stations_name);
-            tvName.setText(station.getName());
-            
-            //ImageView ivImage = (ImageView) itemLayout.findViewById(R.id.stations_icon);
-            //ImageDownloader imageDownloader = new ImageDownloader();
-            //imageDownloader.download(station.getAlbumCoverUrl(), ivImage);
-            
-            return itemLayout;
+
+            ViewHolder holder;
+
+            if (convertView == null) {
+                convertView = LayoutInflater.from(context).inflate(
+                        R.layout.stations_item,
+                        parent,
+                        false);
+
+                holder = new ViewHolder();
+                holder.tvName = convertView.findViewById(R.id.stations_name);
+
+                convertView.setTag(holder);
+            } else {
+                holder = (ViewHolder) convertView.getTag();
+            }
+
+            Station station = getItem(position);
+            holder.tvName.setText(station.getName());
+
+            return convertView;
         }
 
     }
