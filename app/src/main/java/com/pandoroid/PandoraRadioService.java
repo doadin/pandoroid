@@ -21,17 +21,14 @@ import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-//import android.graphics.BitmapFactory;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
-import android.media.MediaMetadata;
 import androidx.media3.session.MediaSession;
 import android.Manifest;
 import android.net.ConnectivityManager;
@@ -42,24 +39,17 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
-import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
-import android.telephony.TelephonyCallback;
-import android.telephony.TelephonyManager;
 import android.util.Log;
-import android.view.KeyEvent;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
-import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
-import androidx.fragment.app.FragmentManager;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSessionService;
@@ -99,7 +89,6 @@ public class PandoraRadioService extends MediaSessionService {
     public MediaPlaybackController m_song_playback;
 
     public ImageDownloader image_downloader;
-    private TelephonyManager telephonyManager;
     private ConnectivityManager connectivity_manager;
     private MusicIntentReceiver m_music_intent_receiver;
     private SharedPreferences m_prefs;
@@ -115,10 +104,7 @@ public class PandoraRadioService extends MediaSessionService {
 
     protected PandoraDB db;
 
-    // static usefullness
-    private static Object lock = new Object();
-    private static Object pandora_lock = new Object();
-
+    // static usefulness
     private MediaSessionCompat.Token mSessionToken;
     public static final String ACTION_PAUSE = "action_pause";
     public static final String ACTION_PLAY = "action_play";
@@ -159,7 +145,6 @@ public class PandoraRadioService extends MediaSessionService {
         m_stations = new ArrayList<>();
 
         connectivity_manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         m_prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
 
         final PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
@@ -193,7 +178,7 @@ public class PandoraRadioService extends MediaSessionService {
                 // ignore
             }
         }
-        stopForeground(true);
+        stopForeground(STOP_FOREGROUND_REMOVE);
         final NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (mNotificationManager != null) {
             mNotificationManager.cancel(1);
@@ -203,9 +188,8 @@ public class PandoraRadioService extends MediaSessionService {
             mWakeLock.release();
         }
         if (mMediaSession != null) {
-            if (mMediaSession.getPlayer() != null) {
-                mMediaSession.getPlayer().release();
-            }
+            mMediaSession.getPlayer();
+            mMediaSession.getPlayer().release();
             mMediaSession.release();
             mMediaSession = null;
         }
@@ -221,7 +205,7 @@ public class PandoraRadioService extends MediaSessionService {
         if (mMediaSession != null) {
             Player player = mMediaSession.getPlayer();
             // Stop service when task is removed if playback has stopped or paused
-            if (player != null && (!player.getPlayWhenReady() || player.getMediaItemCount() == 0)) {
+            if (!player.getPlayWhenReady() || player.getMediaItemCount() == 0) {
                 stopSelf();
             }
         }
@@ -317,7 +301,7 @@ public class PandoraRadioService extends MediaSessionService {
             catch (final RPCException e){
                 if (e.code == RPCException.INVALID_AUTH_TOKEN){
                     needs_partner_login = true;
-                    Log.e("Pandoroid", e.getMessage());
+                    Log.e("Pandoroid", "Error INVALID_AUTH_TOKEN occurred", e);
                 }
                 else{
                     throw e;
@@ -374,19 +358,15 @@ public class PandoraRadioService extends MediaSessionService {
             }
 
             NotificationManager notificationManager = null;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                NotificationChannel channel = new NotificationChannel(
-                        "default",
-                        "Pandoroid Notification Group",
-                        NotificationManager.IMPORTANCE_LOW
-                );
-                channel.setSound(null, null);
-                notificationManager = getSystemService(NotificationManager.class);
-                if (notificationManager != null) {
-                    notificationManager.createNotificationChannel(channel);
-                }
-            } else {
-                notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            NotificationChannel channel = new NotificationChannel(
+                    "default",
+                    "Pandoroid Notification Group",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setSound(null, null);
+            notificationManager = getSystemService(NotificationManager.class);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
             }
 
             Song tmp_song;
@@ -466,7 +446,6 @@ public class PandoraRadioService extends MediaSessionService {
             startForeground(mNotificationId, notification);
         } catch (final Exception e) {
             Log.e("Pandoroid", "Error Setting Notification", e);
-            e.printStackTrace();
         }
     }
     private NotificationCompat.Action generateAction(int icon, String title, PendingIntent intent) {
@@ -484,7 +463,7 @@ public class PandoraRadioService extends MediaSessionService {
 
     public void signOut() {
         if(m_song_playback != null) {
-            stopForeground(true);
+            stopForeground(STOP_FOREGROUND_REMOVE);
             m_song_playback.stop();
         }
 
@@ -513,7 +492,7 @@ public class PandoraRadioService extends MediaSessionService {
             Log.i("Pandoroid", "Station" + m_stations.get(i));
             if (tmp_station.compareTo(station_id) == 0){
                 m_current_station = tmp_station;
-                stopForeground(true);
+                stopForeground(STOP_FOREGROUND_REMOVE);
                 setPlaybackController();
                 m_prefs.edit().putString("lastStationId", station_id).apply();
                 return true;
@@ -643,7 +622,7 @@ public class PandoraRadioService extends MediaSessionService {
         if (m_song_playback != null){
             m_song_playback.stop();
         }
-        stopForeground(true);
+        stopForeground(STOP_FOREGROUND_REMOVE);
         if (mWakeLock.isHeld()) {
             Log.i("Pandoroid", "stopPlayback WakeLock Active releasing");
             mWakeLock.release();
@@ -836,8 +815,8 @@ public class PandoraRadioService extends MediaSessionService {
         /**
          * Description: A handler that must be called when an RPCException
          *  has occurred.
-         * @param e
-         * @return
+         * @param e the RPC exception that occurred
+         * @return an application error code representing the failure condition
          */
         protected int rpcExceptionHandler(final RPCException e) {
             int success_flag = ERROR_UNKNOWN;
@@ -855,7 +834,6 @@ public class PandoraRadioService extends MediaSessionService {
         /**
          * Description: A handler that must be called when an IOException
          *  has been encountered.
-         * @return
          */
         protected int ioExceptionHandler() {
             return ERROR_NETWORK;
@@ -864,7 +842,6 @@ public class PandoraRadioService extends MediaSessionService {
         /**
          * Description: A handler that must be called when a generic Exception has
          *  been encountered.
-         * @return
          */
         protected int generalExceptionHandler() {
             return ERROR_UNKNOWN;
