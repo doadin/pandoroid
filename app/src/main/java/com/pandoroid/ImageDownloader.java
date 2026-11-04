@@ -74,9 +74,10 @@ public class ImageDownloader {
     private final static ConcurrentHashMap<String, SoftReference<Bitmap>> sSoftBitmapCache =
             new ConcurrentHashMap<>(HARD_CACHE_CAPACITY / 2);
 
-    private final Handler purgeHandler = new Handler();
+    private final Handler purgeHandler =
+            new Handler(Looper.getMainLooper());
 
-    private final Runnable purger = () -> clearCache();
+    private final Runnable purger = this::clearCache;
 
     /**
      * Download the specified image from the Internet and binds it to the provided ImageView. The
@@ -180,8 +181,7 @@ public class ImageDownloader {
     private static BitmapDownloaderTask getBitmapDownloaderTask(ImageView imageView) {
         if (imageView != null) {
             Drawable drawable = imageView.getDrawable();
-            if (drawable instanceof DownloadedDrawable) {
-                DownloadedDrawable downloadedDrawable = (DownloadedDrawable)drawable;
+            if (drawable instanceof DownloadedDrawable downloadedDrawable) {
                 return downloadedDrawable.getBitmapDownloaderTask();
             }
         }
