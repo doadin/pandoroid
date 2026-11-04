@@ -1,14 +1,7 @@
 package com.pandoroid.playback;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
@@ -19,24 +12,17 @@ import com.pandoroid.pandora.Song;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.media.AudioAttributes;
-import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.audiofx.Equalizer;
-import android.os.Build;
-import android.preference.PreferenceManager;
+import androidx.preference.PreferenceManager;
 import android.util.Log;
 
-import okhttp3.Call;
-import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import okio.Buffer;
 import okio.BufferedSink;
-import okio.BufferedSource;
-import okio.ByteString;
 import okio.Okio;
 
 public class ConcurrentSongMediaPlayer {
@@ -113,7 +99,7 @@ public class ConcurrentSongMediaPlayer {
     /**
      * Description: Synchronized method that retrieves the current position
      *  from the underlying MediaPlayer.
-     * @return
+     * @return int current position
      */
     public int getCurrentPosition(){
         synchronized(this){
@@ -190,9 +176,7 @@ public class ConcurrentSongMediaPlayer {
 
         // The Android API's are borked in KitKat. It's better to simply not 
         // bother with it.
-        if (!isPlaying()) {
-            return true;
-        }
+        return !isPlaying();
         //int song_length = 0;
         //int current_pos = 0;
         //if (m_player.isPlaying()) {
@@ -210,7 +194,6 @@ public class ConcurrentSongMediaPlayer {
         //if (current_pos >= song_length){
         //    return true;
         //}
-        return false;
     }
     
     /**
@@ -290,10 +273,10 @@ public class ConcurrentSongMediaPlayer {
      *  source, prepares, and if appropriate seeks to the appropriate position 
      *  for the MediaPlayer. After a successful call, start can be called.
      * @param url -The url to set the player to use.
-     * @throws IllegalArgumentException
-     * @throws SecurityException
-     * @throws IllegalStateException
-     * @throws IOException
+     * @throws IllegalArgumentException error
+     * @throws SecurityException error
+     * @throws IllegalStateException error
+     * @throws IOException error
      */
     public void prepare(PandoraAudioUrl url) throws IllegalArgumentException,
                                                     SecurityException,
@@ -325,9 +308,6 @@ public class ConcurrentSongMediaPlayer {
                     throw new IOException("Unexpected response code: " + response.code());
                 }
                 ResponseBody responseBody = response.body();
-                if (responseBody == null) {
-                    throw new IOException("Response body is null");
-                }
                 try (BufferedSink sink = Okio.buffer(Okio.sink(tempMp3))) {
                     responseBody.source().readAll(sink);
                     sink.flush();
@@ -335,15 +315,11 @@ public class ConcurrentSongMediaPlayer {
             }
 
             m_player.setDataSource(tempMp3.getAbsolutePath());
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                AudioAttributes aa = new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build();
-                m_player.setAudioAttributes(aa);
-            } else {
-                m_player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            }
+            AudioAttributes aa = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build();
+            m_player.setAudioAttributes(aa);
             m_player.prepare();
         }
         m_alive = true;
@@ -358,15 +334,11 @@ public class ConcurrentSongMediaPlayer {
         synchronized(this){
             if (tempMp3 != null && tempMp3.exists()) {
                 m_player.setDataSource(tempMp3.getAbsolutePath());
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    AudioAttributes aa = new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build();
-                    m_player.setAudioAttributes(aa);
-                } else {
-                    m_player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                }
+                AudioAttributes aa = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build();
+                m_player.setAudioAttributes(aa);
                 m_player.prepare();
             }
         }
@@ -633,10 +605,10 @@ public class ConcurrentSongMediaPlayer {
             noOfPresents = equalizer.getNumberOfPresets();
             equalizer.release();
             equalizer = null;
-		    return true;
+            return true;
         } catch (Exception e) {
         Log.e("pandoroid", "isequalizersupported: false" + e);
-		return false;
+        return false;
         }    
     }
     
