@@ -23,8 +23,6 @@ jobs:
         run: bash ./gradlew assembleDebug --stacktrace
       - name: Build release APK
         run: bash ./gradlew build --stacktrace
-      - name: Run LS
-        run: ls $GITHUB_WORKSPACE/build/outputs/apk/debug && ls $GITHUB_WORKSPACE/build/outputs/apk/release
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -39,19 +37,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-arm64-v8a-release-unsigned.apk
-            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-armeabi-v7a-release-unsigned.apk
-            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-mips-release-unsigned.apk
-            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-mips64-release-unsigned.apk
-            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-universal-release-unsigned.apk
-            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-x86-release-unsigned.apk
-            ${{ github.workspace }}/build/outputs/apk/release/pandoroid-x86_64-release-unsigned.apk
-            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-arm64-v8a-debug.apk
-            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-armeabi-v7a-debug.apk
-            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-mips-debug.apk
-            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-mips64-debug.apk
-            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-universal-debug.apk
-            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-x86-debug.apk
-            ${{ github.workspace }}/build/outputs/apk/debug/pandoroid-x86_64-debug.apk
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
