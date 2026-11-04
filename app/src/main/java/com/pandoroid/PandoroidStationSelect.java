@@ -17,8 +17,6 @@
  */
 package com.pandoroid;
 
-import android.app.ListActivity;
-import android.app.ProgressDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -31,10 +29,13 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.pandoroid.PandoraRadioService.ServerAsyncTask;
 import com.pandoroid.pandora.RPCException;
@@ -43,21 +44,59 @@ import com.pandoroid.pandora.Station;
 import java.io.IOException;
 import java.util.List;
 
-public class PandoroidStationSelect extends ListActivity {
+public class PandoroidStationSelect extends AppCompatActivity {
     private static AlertDialog m_alert;
     private static boolean m_alert_active_flag = false;
     private PandoraRadioService m_service;
     private StationFetcher m_station_fetch_task;
     private static boolean m_stations_current_flag = false;
-    private static ProgressDialog m_waiting;
+    private View mLoadingContainer;
     private boolean m_is_bound;
+    private ListView m_list_view;
 
+    private ListView getListView() {
+        return m_list_view;
+    }
+
+    private void setListAdapter(ListAdapter adapter) {
+        m_list_view.setAdapter(adapter);
+    }
+
+    private void showLoading() {
+        if (mLoadingContainer != null) {
+            mLoadingContainer.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void hideLoading() {
+        if (mLoadingContainer != null) {
+            mLoadingContainer.setVisibility(View.GONE);
+        }
+    }
     /*
      * Activity start and end stuff
      */
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light);
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.station_select);
+
+        m_list_view = findViewById(android.R.id.list);
+        mLoadingContainer = findViewById(R.id.loading_container);
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                m_stations_current_flag = false;
+                if (m_service != null && m_service.getCurrentStation() == null) {
+                    moveTaskToBack(true);
+                } else {
+                    finish();
+                }
+            }
+        });
+
         doBindService();
     }
     
@@ -68,9 +107,7 @@ public class PandoroidStationSelect extends ListActivity {
             startup();
         }
         else {
-            m_waiting = ProgressDialog.show(PandoroidStationSelect.this,
-                                            "",  
-                                            getString(R.string.loading));
+            showLoading();
         }
     }
 
@@ -99,7 +136,7 @@ public class PandoroidStationSelect extends ListActivity {
             // cast its IBinder to a concrete class and directly access it.
             m_service = ((PandoraRadioService.PandoraRadioBinder)service).getService();
             m_is_bound = true;
-            m_waiting.dismiss();
+            hideLoading();
             startup();
         }
 
@@ -136,19 +173,6 @@ public class PandoroidStationSelect extends ListActivity {
         if (m_alert_active_flag) {
             m_alert.dismiss();
             m_alert_active_flag = false;
-        }
-    }   
-    
-    /**
-     * Description: Special command for interpreting a back command.
-     */
-    public void onBackPressed(){
-        m_stations_current_flag = false;
-        if (m_service.getCurrentStation() == null){
-            moveTaskToBack(true);
-        }
-        else{
-            super.onBackPressed();
         }
     }
 

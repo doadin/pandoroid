@@ -28,6 +28,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -41,7 +42,14 @@ public class PandoroidLogin extends AppCompatActivity {
         setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.login);
-        
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                moveTaskToBack(true);
+            }
+        });
+
         m_prefs = PreferenceManager.getDefaultSharedPreferences(getBaseContext());  
 
         setTitle(R.string.signin_welcome);
@@ -111,14 +119,7 @@ public class PandoroidLogin extends AppCompatActivity {
         }
     }   
     
-    /**
-     * Description: Necessary to modify the behavior of the back button when 
-     *  this activity is started.
-     */
-    public void onBackPressed(){
-        moveTaskToBack(true);
-    }
-    
+
     /**
      * Description: An OnClickListener for the sign in button.
      */
