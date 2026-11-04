@@ -29,6 +29,8 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
+
+import androidx.annotation.NonNull;
 import androidx.media3.session.MediaSession;
 import android.Manifest;
 import android.net.ConnectivityManager;
@@ -38,7 +40,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
-import android.preference.PreferenceManager;
+import androidx.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.util.Log;
 
@@ -162,7 +164,7 @@ public class PandoraRadioService extends MediaSessionService {
 
     // Media3 automatically queries this to connect clients/system controls
     @Override
-    public MediaSession onGetSession(MediaSession.ControllerInfo controllerInfo) {
+    public MediaSession onGetSession(@NonNull MediaSession.ControllerInfo controllerInfo) {
         return mMediaSession;
     }
 
@@ -650,7 +652,7 @@ public class PandoraRadioService extends MediaSessionService {
             }           
         }
     }
-    public class AppConstant
+    public static class AppConstant
     {
         public static final String YES_ACTION = "YES_ACTION";
         public static final String NO_ACTION = "NO_ACTION";
@@ -794,9 +796,9 @@ public class PandoraRadioService extends MediaSessionService {
 
         /**
          * Description: A test to show off different exceptions.
-         * @throws RPCException
-         * @throws IOException
-         * @throws Exception
+         * @throws RPCException error
+         * @throws IOException error
+         * @throws Exception error
          */
         public void exceptionTest() throws RPCException,
                 IOException, Exception {
