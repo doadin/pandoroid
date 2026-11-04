@@ -22,6 +22,7 @@ package com.pandoroid.pandora;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Vector;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -41,7 +42,7 @@ import android.util.Log;
 
 /**
  * Description: Uses Pandora's JSON v5 API. Documentation of the JSON API
- *  can be found here: http://pan-do-ra-api.wikia.com/wiki/Json/5 
+ *  can be found here: <a href="http://pan-do-ra-api.wikia.com/wiki/Json/5">API</a>
  *  A network connection is required before any operation can/should take place.
  *  If a person is bored, and wants to work on something, they could split
  *  off the authentication component from this class while making both this
@@ -107,7 +108,7 @@ public class PandoraRadio {
         standard_url_params = new HashMap<>();
         credentials = new PartnerCredentials();
         last_acquired_playlist_time = 0;
-        last_acquired_playlist_station = new String();
+        last_acquired_playlist_station = "";
             
     }
     
@@ -190,7 +191,7 @@ public class PandoraRadio {
         request_args.put("partnerAuthToken", this.partner_auth_token);
         
         JSONObject result = this.doCall("auth.userLogin", request_args, 
-                                        true, true, null);
+                                        true, true);
         
         //There are a few ways of handling these, but this way seems most
         //appropriate.
@@ -231,14 +232,18 @@ public class PandoraRadio {
      *  the contents of the results key in the response. If an error occurs
      *  (ie "stat":"fail") an exception with the message body will be thrown.
      * Caution: When debugging, be sure to note that most data that flows 
-     *  through here is time sensitive, and if stopped in the wrong places,
+     *  through here is time-sensitive, and if stopped in the wrong places,
      *  it will cause "stat":"fail" responses from the remote server.
+     *      private JSONObject doCall(String method,
+     *                               Map<String, Object> json_params,
+     *                               boolean http_secure_flag,
+     *                               boolean encrypt,
+     *                               Map<String, String> opt_url_params)
      */
     private JSONObject doCall(String method, 
                               Map<String, Object> json_params,
                               boolean http_secure_flag, 
-                              boolean encrypt,
-                              Map<String, String> opt_url_params) throws Exception, 
+                              boolean encrypt) throws Exception,
                                                                          RPCException,
                                                                          IOException{
         JSONObject response = null;
@@ -253,10 +258,7 @@ public class PandoraRadio {
         Map<String, String> 
             url_params = new HashMap<>(standard_url_params);
         url_params.put("method", method);
-        if (opt_url_params != null){
-            url_params.putAll(opt_url_params);
-        }
-        
+
         if (user_auth_token != null){
             request.put("userAuthToken", user_auth_token);
         }
@@ -334,7 +336,7 @@ public class PandoraRadio {
         }
         
         JSONObject response = this.doCall("station.getPlaylist", request_args, 
-                                          true, true, null);
+                                          true, true);
         
         JSONArray songs_returned = response.getJSONArray("items");
         for (int i = 0; i < songs_returned.length(); ++i){
@@ -349,10 +351,20 @@ public class PandoraRadio {
                     //This has to be in the same order as the request.
                     //audio_url_mappings.add(new PandoraAudioUrl(MP3_128, 128, audio_urls.get(0)));
                     if (isPandoraOneCredentials()){
-                        audio_url_mappings.add(new PandoraAudioUrl(AAC_64, 64, audio_urls.get(0)));
+                        if (audio_urls != null && !audio_urls.isEmpty()) {
+                            audio_url_mappings.add(
+                                    new PandoraAudioUrl(AAC_64, 64, audio_urls.get(0)));
+                        } else {
+                            Log.w("Pandoroid", "No AAC_64 audio URL available");
+                        }
                     }
                     if (!isPandoraOneCredentials()){
-                        audio_url_mappings.add(new PandoraAudioUrl(AAC_32, 64, audio_urls.get(0)));
+                        if (audio_urls != null && !audio_urls.isEmpty()) {
+                            audio_url_mappings.add(
+                                    new PandoraAudioUrl(AAC_32, 64, audio_urls.get(0)));
+                        } else {
+                            Log.w("Pandoroid", "No AAC_32 audio URL available");
+                        }
                     }
                     //audio_url_mappings.add(new PandoraAudioUrl(AAC_32, 32, audio_urls.get(0)));
                     //audio_url_mappings.add(new PandoraAudioUrl(AAC_64, 64, audio_urls.get(1)));
@@ -367,11 +379,20 @@ public class PandoraRadio {
                 //                                              ));
                 //}
                 ////AAC_64 data
-                audio_url_mappings.add(new PandoraAudioUrl(
-                    (Map<String,Object>) (
-                        (Map<String,Object>) song_data.get("audioUrlMap")
-                                         ).get("highQuality")
-                                                           ));              
+                Map<String, Object> audioUrlMap =
+                        (Map<String, Object>) song_data.get("audioUrlMap");
+                if (audioUrlMap != null) {
+                    Map<String, Object> highQuality =
+                            (Map<String, Object>) audioUrlMap.get("highQuality");
+
+                    if (highQuality != null) {
+                        audio_url_mappings.add(new PandoraAudioUrl(highQuality));
+                    } else {
+                        Log.w("Pandoroid", "Song missing highQuality audio URL");
+                    }
+                } else {
+                    Log.w("Pandoroid", "Song missing audioUrlMap");
+                }
                 songs.add(new Song(song_data, audio_url_mappings));
             }
             catch (NullPointerException e){
@@ -421,7 +442,7 @@ public class PandoraRadio {
         //        false, true, null);
         
         JSONObject result = doCall("user.getStationList", null,
-                                   false, true, null);
+                                   false, true);
         
         //Our stations come in a JSONArray within the JSONObject
         JSONArray result_stations = result.getJSONArray("stations");
@@ -492,7 +513,7 @@ public class PandoraRadio {
     
     public boolean isPandoraOneCredentials(){
         return (/*credentials.device_model.equals(ONE_DEVICE_ID)*/
-                credentials.device_model == ONE_DEVICE_ID);
+                Objects.equals(credentials.device_model, ONE_DEVICE_ID));
     }
     
     public boolean isPartnerAuthorized(){
@@ -553,7 +574,7 @@ public class PandoraRadio {
         JSONObject partner_return = null;
         
         partner_return = this.doCall("auth.partnerLogin", partner_params, 
-                                     true, false, null);
+                                     true, false);
         partner_auth_token = partner_return.getString("partnerAuthToken");
         standard_url_params.put("partner_id", 
                                 partner_return.getString("partnerId"));
@@ -572,7 +593,7 @@ public class PandoraRadio {
         Map<String, Object> feedback_params = new HashMap<>(2);
         feedback_params.put("trackToken", song.getId());
         feedback_params.put("isPositive", rating);
-        this.doCall("station.addFeedback", feedback_params, false, true, null);
+        this.doCall("station.addFeedback", feedback_params, false, true);
     }
     
     /**
@@ -588,13 +609,12 @@ public class PandoraRadio {
     
     /**
      * Description: Sets the cipher keys up.
-     * @throws Exception
      */
     @SuppressLint("GetInstance")
     private void setCipher() throws NoSuchAlgorithmException,
                                     NoSuchPaddingException,
                                     InvalidKeyException {
-        //We're using the built in Blowfish cipher here.
+        //We're using the built-in Blowfish cipher here.
         blowfish_encode = Cipher.getInstance("Blowfish/ECB/NoPadding");
         byte[] encrypt_key_data = this.credentials.e_cipher.getBytes();
         SecretKeySpec key_spec = new SecretKeySpec(encrypt_key_data, "Blowfish");
@@ -610,8 +630,8 @@ public class PandoraRadio {
      * Description: This sets or resets (depending on how you look at it) the
      *  credentials for the app's authentication. 
      * Postcondition: partnerLogin() will need to be called.
-     * @param is_pandora_one
-     * @throws Exception
+     * @param is_pandora_one boolean
+     * @throws Exception error
      */
     private void setCredentials(boolean is_pandora_one) throws Exception{
         if (is_pandora_one){
