@@ -109,7 +109,7 @@ public class Song {
     /**
      * Description: Returns a linked list of PandoraAudioUrls sorted from highest
      *  to lowest audio quality.
-     * @return
+     * @return LinkedList
      */
     public LinkedList<PandoraAudioUrl> getSortedAudioUrls(){
         return this.audio_urls;
