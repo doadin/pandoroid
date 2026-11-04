@@ -1,6 +1,6 @@
 val versionMajor = 1
 val versionMinor = 6
-val versionPatch = 4
+val versionPatch = 5
 var versionClassifier: String? = null
 val isSnapshot = true
 val minimumSdkVersion = 21
