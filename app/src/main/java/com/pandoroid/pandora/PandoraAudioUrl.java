@@ -2,6 +2,8 @@ package com.pandoroid.pandora;
 
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import java.util.Map;
 
 /**
@@ -33,43 +35,41 @@ public class PandoraAudioUrl implements Comparable<PandoraAudioUrl>{
         else {
             this.m_type = "unknown";
         }
-        
-        this.m_bitrate = Integer.parseInt((String) extended_audio_url.get("bitrate"));
+
+        String bitrateStr = (String) extended_audio_url.get("bitrate");
+
+        if (bitrateStr != null) {
+            this.m_bitrate = Integer.parseInt(bitrateStr);
+        } else {
+            Log.w("Pandoroid", "Missing bitrate in audio URL data");
+            this.m_bitrate = 0;
+        }
         this.m_url_str = (String) extended_audio_url.get("audioUrl");
         Log.i("pandoroid", "Audio URI: " + extended_audio_url);
     }
     
+    @NonNull
     public String toString(){
         return m_url_str;
     }
-    
+
     private boolean is_AAC_64(Map<String, Object> extended_audio_url){
-        return (((String) extended_audio_url.get("bitrate")).compareTo("64") == 0
-                                          &&
-                ((String) extended_audio_url.get("encoding")).compareTo("aacplus") == 0);
+        return "64".equals(extended_audio_url.get("bitrate"))
+                && "aacplus".equals(extended_audio_url.get("encoding"));
     }
 
     private boolean is_AAC_32(Map<String, Object> extended_audio_url){
-        return (((String) extended_audio_url.get("bitrate")).compareTo("32") == 0
-                &&
-                ((String) extended_audio_url.get("encoding")).compareTo("aacplus") == 0);
+        return "32".equals(extended_audio_url.get("bitrate"))
+                && "aacplus".equals(extended_audio_url.get("encoding"));
     }
-    
+
     private boolean is_MP3_192(Map<String, Object> extended_audio_url){
-        return (((String) extended_audio_url.get("bitrate")).compareTo("192") == 0
-                                     &&
-                ((String) extended_audio_url.get("encoding")).compareTo("mp3") == 0);
+        return "192".equals(extended_audio_url.get("bitrate"))
+                && "mp3".equals(extended_audio_url.get("encoding"));
     }
     
     public int compareTo(PandoraAudioUrl comparable){
-        if (this.m_bitrate == comparable.m_bitrate){
-            return 0;
-        }
-        else if (this.m_bitrate < comparable.m_bitrate){
-            return -1;
-        }
-        else { //if it's greater
-            return 1;
-        }
+        //if it's greater
+        return Integer.compare(this.m_bitrate, comparable.m_bitrate);
     }
 }
