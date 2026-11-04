@@ -20,7 +20,7 @@ package com.pandoroid;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
+import androidx.preference.PreferenceManager;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.inputmethod.InputMethodManager;
@@ -90,10 +90,7 @@ public class PandoroidLogin extends AppCompatActivity {
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(text_view.getWindowToken(), 0);
         
-        if(user_name != null && 
-                password != null && 
-                user_name.length() > 0 && 
-                password.length() > 0) {
+        if(!user_name.isEmpty() && !password.isEmpty()) {
             
             boolean success = m_prefs.edit()
                                      .putString("pandora_username", user_name)
