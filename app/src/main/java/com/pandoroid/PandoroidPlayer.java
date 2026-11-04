@@ -17,7 +17,6 @@
  */
 package com.pandoroid;
 
-import android.app.ProgressDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -26,7 +25,7 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.preference.PreferenceManager;
+import androidx.preference.PreferenceManager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -35,8 +34,10 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import androidx.appcompat.app.AlertDialog;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
@@ -52,8 +53,9 @@ import java.io.IOException;
 
 public class PandoroidPlayer extends AppCompatActivity {
 
-//  public static final int REQUIRE_SELECT_STATION = 0x10;
-//  public static final int REQUIRE_LOGIN_CREDS = 0x20;
+    //public static final int REQUIRE_SELECT_STATION = 0x10;
+
+    //public static final int REQUIRE_LOGIN_CREDS = 0x20;
     public static final String RATING_BAN = "ban";
     //public static final String RATING_TEMPBAN = "ban";
     public static final String RATING_LOVE = "love";
@@ -74,7 +76,7 @@ public class PandoroidPlayer extends AppCompatActivity {
     private static boolean m_retrieve_stations_finished_flag = true;
     private UserLoginTask m_user_login_task;
     private static boolean m_user_login_finished_flag = true;
-    private static ProgressDialog m_waiting;
+    private AlertDialog m_waiting;
 
     /*
      * Activity start and end specific stuff
@@ -96,11 +98,11 @@ public class PandoroidPlayer extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+
         if (m_is_bound) {
             startup();
         } else {
-            m_waiting = ProgressDialog.show(PandoroidPlayer.this, "",
-                                          getString(R.string.loading));
+            showWaiting(getString(R.string.loading));
         }
     }
 
@@ -246,10 +248,9 @@ public class PandoroidPlayer extends AppCompatActivity {
     /**
      * Description: Removes waiting prompts.
      */
-    private static void dismissWaiting() {
+    private void dismissWaiting() {
         if (m_waiting != null && m_waiting.isShowing()) {
             m_waiting.dismiss();
-            m_waiting = null;
         }
     }
 
@@ -383,7 +384,25 @@ public class PandoroidPlayer extends AppCompatActivity {
      */
     private void showWaiting(String message) {
         dismissWaiting();
-        m_waiting = ProgressDialog.show(this, "", message);
+
+        ProgressBar progressBar = new ProgressBar(this);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.HORIZONTAL);
+        layout.setPadding(50, 50, 50, 50);
+
+        TextView textView = new TextView(this);
+        textView.setText(message);
+        textView.setPadding(30, 0, 0, 0);
+
+        layout.addView(progressBar);
+        layout.addView(textView);
+
+        m_waiting = new AlertDialog.Builder(this)
+                .setView(layout)
+                .setCancelable(false)
+                .create();
+
         m_waiting.show();
     }
 
@@ -397,9 +416,9 @@ public class PandoroidPlayer extends AppCompatActivity {
         ImageView image = (ImageView) findViewById(R.id.player_image);
 
         if (song != null){
-            setTitle("" + song.getTitle());
+            setTitle(song.getTitle());
             if (getSupportActionBar() != null) {
-                getSupportActionBar().setTitle("" + song.getTitle());
+                getSupportActionBar().setTitle(song.getTitle());
             }
             m_service.image_downloader.download(song.getAlbumCoverUrl(), image);
             top.setText(String.format("%s\n%s\n%s", "Artist: " + song.getArtist(), "Album: " + song.getAlbum(), "Station: " + m_service.getCurrentStation().getName()));
@@ -526,7 +545,7 @@ public class PandoroidPlayer extends AppCompatActivity {
         }
 
         protected Integer doInBackground(Boolean... subscriber_type) {
-            Integer success_flag = -1;
+            int success_flag = -1;
             try {
                 m_service.runPartnerLogin(subscriber_type[0]);
             } catch (RPCException e) {
@@ -578,7 +597,7 @@ public class PandoroidPlayer extends AppCompatActivity {
         }
 
         protected Integer doInBackground(Void... massive_void){
-            Integer success_flag = -1;
+            int success_flag = -1;
             try{
                 m_service.updateStations();
             } catch (RPCException e) {
@@ -631,7 +650,7 @@ public class PandoroidPlayer extends AppCompatActivity {
         }
 
         protected Integer doInBackground(String... strings) {
-            Integer success_flag = -1;
+            int success_flag = -1;
             try {
                 m_service.runUserLogin(strings[0], strings[1]);
             } catch (RPCException e) {
