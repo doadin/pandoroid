@@ -28,9 +28,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ServiceInfo;
 import android.media.AudioManager;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaSession;
 import android.Manifest;
 import android.net.ConnectivityManager;
@@ -61,6 +64,7 @@ import com.pandoroid.pandora.RPCException;
 import com.pandoroid.pandora.Song;
 import com.pandoroid.pandora.Station;
 import com.pandoroid.pandora.SubscriberTypeException;
+import com.pandoroid.playback.ConcurrentSongMediaPlayer;
 import com.pandoroid.playback.MediaPlaybackController;
 import com.pandoroid.playback.OnErrorListener;
 import com.pandoroid.playback.OnNewSongListener;
@@ -81,10 +85,7 @@ import static android.app.PendingIntent.FLAG_IMMUTABLE;
 public class PandoraRadioService extends MediaSessionService {
 
     private static final int NOTIFICATION_SONG_PLAYING = 1;
-    private ExoPlayer mPlayer;
     private MediaSession mMediaSession;
-    private MediaSessionCompat mMediaSessionCompat;
-
     
     // tools this service uses
     private PandoraRadio m_pandora_remote;
@@ -114,6 +115,8 @@ public class PandoraRadioService extends MediaSessionService {
     private MediaSession mSession;
     private PowerManager.WakeLock mWakeLock;
 
+    private boolean mForegroundStarted = false;
+
     public class PandoraRadioBinder extends Binder {
         PandoraRadioService getService() {
             return PandoraRadioService.this;
@@ -131,15 +134,6 @@ public class PandoraRadioService extends MediaSessionService {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        // 1. Initialize ExoPlayer
-        mPlayer = new ExoPlayer.Builder(this).build();
-
-        // 2. Build the MediaSession
-        mMediaSession = new MediaSession.Builder(this, mPlayer).build();
-        mMediaSessionCompat = new MediaSessionCompat(this, "Pandoroid");
-        mSessionToken = mMediaSessionCompat.getSessionToken();
-        mMediaSessionCompat.setActive(true);
 
         m_paused = false;
         m_pandora_remote = new PandoraRadio();
@@ -160,6 +154,48 @@ public class PandoraRadioService extends MediaSessionService {
         } catch (Exception e) {
             Log.e("Pandoroid", "Error registering receiver", e);
         }
+    }
+
+    public void createMediaSession() {
+
+        Log.e("Pandoroid",
+                "createMediaSession called");
+
+        if (mMediaSession != null) {
+            return;
+        }
+
+        if (m_song_playback == null) {
+            Log.e("Pandoroid",
+                    "Cannot create MediaSession: playback controller null");
+            return;
+        }
+
+        if (m_song_playback.getActivePlayer() == null) {
+
+            Log.e("Pandoroid",
+                    "Cannot create MediaSession: active player null");
+
+            new Handler(Looper.getMainLooper())
+                    .postDelayed(
+                            this::createMediaSession,
+                            250);
+            return;
+        }
+
+        ExoPlayer player =
+                m_song_playback
+                        .getActivePlayer()
+                        .getExoPlayer();
+
+        mMediaSession =
+                new MediaSession.Builder(this, player)
+                        .build();
+
+        mSessionToken = MediaSessionCompat.Token.fromToken(mMediaSession.getPlatformToken());
+
+        Log.e("Pandoroid",
+                "MediaSession CREATED with token: " + mSessionToken);
     }
 
     // Media3 automatically queries this to connect clients/system controls
@@ -190,15 +226,10 @@ public class PandoraRadioService extends MediaSessionService {
             mWakeLock.release();
         }
         if (mMediaSession != null) {
-            mMediaSession.getPlayer();
-            mMediaSession.getPlayer().release();
             mMediaSession.release();
             mMediaSession = null;
         }
-        if (mMediaSessionCompat != null) {
-            mMediaSessionCompat.release();
-            mMediaSessionCompat = null;
-        }
+        Log.e("Pandoroid", "PandoraRadioService destroyed");
         super.onDestroy();
     }
 
@@ -219,6 +250,8 @@ public class PandoraRadioService extends MediaSessionService {
             Log.i("Pandoroid", "onTaskRemoved WakeLock is held, releasing");
             mWakeLock.release();
         }
+        Log.e("Pandoroid",
+                "PandoraRadioService TASK REMOVED");
         super.onTaskRemoved(rootIntent);
     }
 
@@ -235,6 +268,11 @@ public class PandoraRadioService extends MediaSessionService {
                 skip();
             }
         }
+        Log.i("Pandoroid",
+                "onStartCommand flags="
+                        + flags
+                        + " startId="
+                        + startId);
         return START_STICKY;
     }
     
@@ -358,6 +396,11 @@ public class PandoraRadioService extends MediaSessionService {
                     Log.e("Pandoroid", "Notification permission denied");
                 }
             }
+            Log.i("Pandoroid",
+                    "POST_NOTIFICATIONS permission = "
+                            + ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.POST_NOTIFICATIONS));
 
             NotificationManager notificationManager = null;
             NotificationChannel channel = new NotificationChannel(
@@ -442,10 +485,33 @@ public class PandoraRadioService extends MediaSessionService {
             }
 
             android.app.Notification notification = mBuilder.build();
-            if (notificationManager != null) {
-                notificationManager.notify(mNotificationId, notification);
+            Log.i("Pandoroid",
+                    "mForegroundStarted=" + mForegroundStarted);
+            if (!mForegroundStarted) {
+
+                Log.i("Pandoroid", "Starting foreground service");
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(mNotificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                } else {
+                    startForeground(mNotificationId, notification);
+                }
+
+                mForegroundStarted = true;
+
+            } else {
+
+                Log.i("Pandoroid", "Updating notification");
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(mNotificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                } else {
+                    assert notificationManager != null;
+                    notificationManager.notify(
+                            mNotificationId,
+                            notification);
+                }
             }
-            startForeground(mNotificationId, notification);
         } catch (final Exception e) {
             Log.e("Pandoroid", "Error Setting Notification", e);
         }
@@ -494,7 +560,7 @@ public class PandoraRadioService extends MediaSessionService {
             Log.i("Pandoroid", "Station" + m_stations.get(i));
             if (tmp_station.compareTo(station_id) == 0){
                 m_current_station = tmp_station;
-                stopForeground(STOP_FOREGROUND_REMOVE);
+                //stopForeground(STOP_FOREGROUND_REMOVE);
                 setPlaybackController();
                 m_prefs.edit().putString("lastStationId", station_id).apply();
                 return true;
@@ -575,27 +641,53 @@ public class PandoraRadioService extends MediaSessionService {
             }
         }
     }
-    
-    private void setPlaybackController(){
-        try{    
-            if (m_song_playback == null){       
-                m_song_playback = new MediaPlaybackController(m_current_station.getStationIdToken(),
-                                                            PandoraRadio.AAC_32,
-                                                            m_audio_quality,
-                                                            m_pandora_remote,
-                                                            connectivity_manager);
 
-                
+    private void setPlaybackController() {
+
+        Log.e("Pandoroid", "setPlaybackController called");
+
+        try {
+
+            if (m_song_playback == null) {
+
+                Log.e("Pandoroid",
+                        "Creating MediaPlaybackController");
+
+                m_song_playback =
+                        new MediaPlaybackController(
+                                m_current_station.getStationIdToken(),
+                                PandoraRadio.AAC_32,
+                                m_audio_quality,
+                                m_pandora_remote,
+                                connectivity_manager);
             }
-            else{
-                m_song_playback.reset(m_current_station.getStationIdToken(), m_pandora_remote);
-                
+            else {
+
+                Log.e("Pandoroid",
+                        "Resetting MediaPlaybackController");
+
+                m_song_playback.reset(
+                        m_current_station.getStationIdToken(),
+                        m_pandora_remote);
             }
+
+            m_song_playback.setOnActivePlayerCreatedListener(() -> {
+                new Handler(Looper.getMainLooper()).post(this::createMediaSession);
+            });
+
             resetPlaybackListeners();
-        } 
-        catch (final Exception e) {
-            Log.e("Pandoroid", e.getMessage(), e);
-            m_song_playback = null;
+
+            Log.e("Pandoroid",
+                    "About to create MediaSession");
+
+            //createMediaSession();
+
+        }
+        catch (Exception e) {
+
+            Log.e("Pandoroid",
+                    "setPlaybackController failed",
+                    e);
         }
     }
     
@@ -617,7 +709,19 @@ public class PandoraRadioService extends MediaSessionService {
         if (m_song_playback != null){
             final Thread t = new Thread(m_song_playback);
             t.start();
-        }       
+        }
+        if (mMediaSession == null) {
+            createMediaSession();
+            Log.e("Pandoroid",
+                    "Creating MediaSession from startPlayback");
+        }
+    }
+
+    public void ensureMediaSession() {
+
+        if (mMediaSession == null) {
+            createMediaSession();
+        }
     }
     
     public void stopPlayback(){

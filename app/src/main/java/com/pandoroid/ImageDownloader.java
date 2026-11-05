@@ -193,27 +193,33 @@ public class ImageDownloader {
      * @return The cached bitmap or null if it was not found.
      */
     private Bitmap getBitmapFromCache(String url) {
-        // First try the hard reference cache
+
+        if (url == null) {
+            Log.e("Pandoroid",
+                    "getBitmapFromCache: null URL");
+            return null;
+        }
+
         synchronized (sHardBitmapCache) {
             final Bitmap bitmap = sHardBitmapCache.get(url);
+
             if (bitmap != null) {
-                // Bitmap found in hard cache
-                // Move element to first position, so that it is removed last
                 sHardBitmapCache.remove(url);
                 sHardBitmapCache.put(url, bitmap);
                 return bitmap;
             }
         }
 
-        // Then try the soft reference cache
-        SoftReference<Bitmap> bitmapReference = sSoftBitmapCache.get(url);
+        SoftReference<Bitmap> bitmapReference =
+                sSoftBitmapCache.get(url);
+
         if (bitmapReference != null) {
+
             final Bitmap bitmap = bitmapReference.get();
+
             if (bitmap != null) {
-                // Bitmap found in soft cache
                 return bitmap;
             } else {
-                // Soft reference has been Garbage Collected
                 sSoftBitmapCache.remove(url);
             }
         }

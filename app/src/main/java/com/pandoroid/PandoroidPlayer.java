@@ -17,14 +17,18 @@
  */
 package com.pandoroid;
 
+import android.Manifest;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import androidx.core.app.ActivityCompat;
 import androidx.preference.PreferenceManager;
 import android.util.Log;
 import android.view.Menu;
@@ -78,6 +82,21 @@ public class PandoroidPlayer extends AppCompatActivity {
     private static boolean m_user_login_finished_flag = true;
     private AlertDialog m_waiting;
 
+    private static final int REQUEST_POST_NOTIFICATIONS = 101;
+
+    private void checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                        this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        REQUEST_POST_NOTIFICATIONS
+                );
+            }
+        }
+    }
+
     /*
      * Activity start and end specific stuff
      */
@@ -87,6 +106,7 @@ public class PandoroidPlayer extends AppCompatActivity {
         setContentView(R.layout.player);
 
         m_prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        checkNotificationPermission();
         doBindService();
     }
 
@@ -106,16 +126,21 @@ public class PandoroidPlayer extends AppCompatActivity {
         }
     }
 
+    @Override
     protected void onPause() {
+        Log.e("Pandoroid", "ENTER onPause");
         super.onPause();
+        Log.e("Pandoroid", "EXIT onPause");
     }
 
     protected void onStop() {
+        Log.e("Pandoroid", "ENTER onStop");
         super.onStop();
         if (m_alert_active_flag) {
             m_alert.dismiss();
         }
         dismissWaiting();
+        Log.e("Pandoroid", "EXIT onStop");
     }
 
     protected void onDestroy() {
