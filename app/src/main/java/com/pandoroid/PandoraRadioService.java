@@ -55,9 +55,14 @@ import java.util.concurrent.TimeUnit;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.media3.common.ForwardingPlayer;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSessionService;
+import androidx.media3.session.SessionResult;
+
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import com.pandoroid.pandora.PandoraRadio;
 import com.pandoroid.pandora.RPCException;
@@ -188,8 +193,39 @@ public class PandoraRadioService extends MediaSessionService {
                         .getActivePlayer()
                         .getExoPlayer();
 
+        ForwardingPlayer forwardingPlayer = new ForwardingPlayer(player) {
+            @NonNull
+            @Override
+            public Player.Commands getAvailableCommands() {
+                return super.getAvailableCommands()
+                        .buildUpon()
+                        .add(Player.COMMAND_SEEK_TO_NEXT)
+                        .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                        .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                        .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                        .build();
+            }
+
+            @Override
+            public boolean hasNextMediaItem() {
+                return true;
+            }
+
+            @Override
+            public void seekToNext() {
+                Log.i("Pandoroid", "ForwardingPlayer seekToNext called");
+                skip();
+            }
+
+            @Override
+            public void seekToNextMediaItem() {
+                Log.i("Pandoroid", "ForwardingPlayer seekToNextMediaItem called");
+                skip();
+            }
+        };
+
         mMediaSession =
-                new MediaSession.Builder(this, player)
+                new MediaSession.Builder(this, forwardingPlayer)
                         .build();
 
         mSessionToken = MediaSessionCompat.Token.fromToken(mMediaSession.getPlatformToken());
