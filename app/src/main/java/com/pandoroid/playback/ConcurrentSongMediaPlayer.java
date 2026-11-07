@@ -1,5 +1,6 @@
 package com.pandoroid.playback;
 
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -14,6 +15,7 @@ import androidx.annotation.OptIn;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
@@ -187,8 +189,27 @@ public class ConcurrentSongMediaPlayer {
 
         mainHandler.post(() -> {
 
-            MediaItem item =
-                    MediaItem.fromUri(url.toString());
+            MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder();
+            if (m_song != null) {
+                if (m_song.getTitle() != null) {
+                    metadataBuilder.setTitle(m_song.getTitle())
+                            .setDisplayTitle(m_song.getTitle());
+                }
+                if (m_song.getArtist() != null) {
+                    metadataBuilder.setArtist(m_song.getArtist());
+                }
+                if (m_song.getAlbum() != null) {
+                    metadataBuilder.setAlbumTitle(m_song.getAlbum());
+                }
+                if (m_song.getAlbumCoverUrl() != null && !m_song.getAlbumCoverUrl().isEmpty()) {
+                    metadataBuilder.setArtworkUri(Uri.parse(m_song.getAlbumCoverUrl()));
+                }
+            }
+
+            MediaItem item = new MediaItem.Builder()
+                    .setUri(url.toString())
+                    .setMediaMetadata(metadataBuilder.build())
+                    .build();
 
             m_player.setMediaItem(item);
 
