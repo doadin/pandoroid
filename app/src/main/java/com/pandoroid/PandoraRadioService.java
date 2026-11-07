@@ -161,6 +161,7 @@ public class PandoraRadioService extends MediaSessionService {
         }
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     public void createMediaSession() {
 
         Log.e("Pandoroid",
@@ -199,6 +200,7 @@ public class PandoraRadioService extends MediaSessionService {
             public Player.Commands getAvailableCommands() {
                 return super.getAvailableCommands()
                         .buildUpon()
+                        .add(Player.COMMAND_PLAY_PAUSE)
                         .add(Player.COMMAND_SEEK_TO_NEXT)
                         .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
                         .add(Player.COMMAND_SEEK_TO_PREVIOUS)
@@ -221,6 +223,30 @@ public class PandoraRadioService extends MediaSessionService {
             public void seekToNextMediaItem() {
                 Log.i("Pandoroid", "ForwardingPlayer seekToNextMediaItem called");
                 skip();
+            }
+
+            @Override
+            public void play() {
+                Log.i("Pandoroid", "ForwardingPlayer play called");
+                new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::play);
+            }
+
+            @Override
+            public void pause() {
+                Log.i("Pandoroid", "ForwardingPlayer pause called");
+                new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::pause);
+            }
+
+            @Override
+            public void setPlayWhenReady(boolean playWhenReady) {
+                Log.i("Pandoroid", "ForwardingPlayer setPlayWhenReady called: " + playWhenReady);
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (playWhenReady) {
+                        PandoraRadioService.this.play();
+                    } else {
+                        PandoraRadioService.this.pause();
+                    }
+                });
             }
         };
 
@@ -302,6 +328,8 @@ public class PandoraRadioService extends MediaSessionService {
                 pause();
             } else if ("ACTION_NEXT".equals(action)) {
                 skip();
+            } else if ("ACTION_TOGGLE_PLAYBACK".equals(action) || "ACTION_PLAY_PAUSE".equals(action)) {
+                playPause();
             }
         }
         Log.i("Pandoroid",
@@ -465,9 +493,9 @@ public class PandoraRadioService extends MediaSessionService {
             Intent playIntent = new Intent(this, NotificationActionReceiver.class).setAction("ACTION_PLAY");
             Intent pauseIntent = new Intent(this, NotificationActionReceiver.class).setAction("ACTION_PAUSE");
             Intent nextIntent = new Intent(this, NotificationActionReceiver.class).setAction("ACTION_NEXT");
-            PendingIntent playPendingIntent = PendingIntent.getBroadcast(this, 0, playIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
-            PendingIntent pausePendingIntent = PendingIntent.getBroadcast(this, 0, pauseIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
-            PendingIntent nextPendingIntent = PendingIntent.getBroadcast(this, 0, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
+            PendingIntent playPendingIntent = PendingIntent.getBroadcast(this, 1, playIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
+            PendingIntent pausePendingIntent = PendingIntent.getBroadcast(this, 2, pauseIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
+            PendingIntent nextPendingIntent = PendingIntent.getBroadcast(this, 3, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
             if (m_paused)
                 mBuilder
                         .setSmallIcon(R.drawable.notification_icon)
