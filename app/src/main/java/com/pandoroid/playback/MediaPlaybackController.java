@@ -130,7 +130,7 @@ public class MediaPlaybackController implements Runnable{
         m_active_player.isPlaying();
         
         Boolean alive = true;
-        while(alive){
+        while(alive && m_alive){
             if (m_active_player.isPlaying()){
                 String CP = String.format(
                         Locale.getDefault(),
@@ -203,7 +203,8 @@ public class MediaPlaybackController implements Runnable{
                 // Expected. Just wake up and continue the loop.
             }
             catch (InterruptedException e) {
-                Log.e("Pandoroid", "Playback thread interrupted", e);
+                Log.d("Pandoroid", "Playback thread interrupted");
+                alive = m_alive;
             }
         }
         
