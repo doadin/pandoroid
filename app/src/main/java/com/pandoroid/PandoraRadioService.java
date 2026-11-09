@@ -151,6 +151,7 @@ public class PandoraRadioService extends MediaLibraryService {
         super.onCreate();
 
         m_paused = false;
+        m_audio_quality = PandoraRadio.AAC_64;
         m_pandora_remote = new PandoraRadio();
         image_downloader = new ImageDownloader();
         m_stations = new ArrayList<>();
@@ -169,6 +170,43 @@ public class PandoraRadioService extends MediaLibraryService {
         } catch (Exception e) {
             Log.e("Pandoroid", "Error registering receiver", e);
         }
+
+        ensureLoggedInAndStationsLoaded();
+    }
+
+    private volatile boolean m_auto_login_in_progress = false;
+
+    public void ensureLoggedInAndStationsLoaded() {
+        if (m_stations != null && !m_stations.isEmpty()) {
+            return;
+        }
+        if (m_auto_login_in_progress) {
+            return;
+        }
+        final String username = m_prefs.getString("pandora_username", null);
+        final String password = m_prefs.getString("pandora_password", null);
+        if (username == null || password == null) {
+            return;
+        }
+        m_auto_login_in_progress = true;
+        new Thread(() -> {
+            try {
+                boolean is_pandora_one = m_prefs.getBoolean("pandora_one_subscriber", false);
+                runPartnerLogin(is_pandora_one);
+                runUserLogin(username, password);
+                updateStations();
+                String lastStationId = m_prefs.getString("lastStationId", null);
+                if (lastStationId != null) {
+                    setCurrentStation(lastStationId);
+                } else if (m_stations != null && !m_stations.isEmpty()) {
+                    setCurrentStation(m_stations.get(0).getStationId());
+                }
+            } catch (Exception e) {
+                Log.e("Pandoroid", "Auto login/station load failed in service", e);
+            } finally {
+                m_auto_login_in_progress = false;
+            }
+        }).start();
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -318,7 +356,7 @@ public class PandoraRadioService extends MediaLibraryService {
             }
         };
 
-        mMediaLibrarySession =
+        MediaLibrarySession.Builder builder =
                 new MediaLibrarySession.Builder(this, forwardingPlayer, new MediaLibrarySession.Callback() {
                     @NonNull
                     @Override
@@ -399,6 +437,7 @@ public class PandoraRadioService extends MediaLibraryService {
                             @NonNull MediaLibrarySession session,
                             @NonNull MediaSession.ControllerInfo browser,
                             @Nullable LibraryParams params) {
+                        ensureLoggedInAndStationsLoaded();
                         MediaMetadata metadata = new MediaMetadata.Builder()
                                 .setIsBrowsable(true)
                                 .setIsPlayable(false)
@@ -420,9 +459,10 @@ public class PandoraRadioService extends MediaLibraryService {
                             int page,
                             int pageSize,
                             @Nullable LibraryParams params) {
+                        ensureLoggedInAndStationsLoaded();
                         if ("root".equals(parentId)) {
                             List<MediaItem> mediaItems = new ArrayList<>();
-                            if (m_stations != null) {
+                            if (m_stations != null && !m_stations.isEmpty()) {
                                 for (Station station : m_stations) {
                                     MediaMetadata metadata = new MediaMetadata.Builder()
                                             .setIsBrowsable(false)
@@ -435,6 +475,19 @@ public class PandoraRadioService extends MediaLibraryService {
                                             .build();
                                     mediaItems.add(item);
                                 }
+                            } else {
+                                String username = m_prefs.getString("pandora_username", null);
+                                String message = (username == null) ? "Please sign in on your phone" : "Loading stations...";
+                                MediaMetadata metadata = new MediaMetadata.Builder()
+                                        .setIsBrowsable(false)
+                                        .setIsPlayable(false)
+                                        .setTitle(message)
+                                        .build();
+                                MediaItem infoItem = new MediaItem.Builder()
+                                        .setMediaId("info_item")
+                                        .setMediaMetadata(metadata)
+                                        .build();
+                                mediaItems.add(infoItem);
                             }
                             return Futures.immediateFuture(LibraryResult.ofItemList(mediaItems, params));
                         }
@@ -457,8 +510,18 @@ public class PandoraRadioService extends MediaLibraryService {
                         }
                         return Futures.immediateFuture(mediaItems);
                     }
-                })
-                .build();
+                });
+
+        Intent sessionIntent = new Intent(this, PandoroidPlayer.class);
+        PendingIntent sessionPendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                sessionIntent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        builder.setSessionActivity(sessionPendingIntent);
+
+        mMediaLibrarySession = builder.build();
 
         mSessionToken = MediaSessionCompat.Token.fromToken(mMediaLibrarySession.getPlatformToken());
 
