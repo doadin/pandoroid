@@ -32,9 +32,17 @@ import android.content.pm.ServiceInfo;
 import android.media.AudioManager;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.session.LibraryResult;
+import androidx.media3.session.MediaLibraryService;
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession;
 import androidx.media3.session.MediaSession;
+import java.util.List;
+import com.google.common.collect.ImmutableList;
 import android.Manifest;
 import android.net.ConnectivityManager;
 import android.os.Binder;
@@ -87,10 +95,10 @@ import static android.app.PendingIntent.FLAG_IMMUTABLE;
  * Description: Someone really needs to give this class some loving, document
  *  it up, organize it, and make it thread safe.
  */
-public class PandoraRadioService extends MediaSessionService {
+public class PandoraRadioService extends MediaLibraryService {
 
     private static final int NOTIFICATION_SONG_PLAYING = 1;
-    private MediaSession mMediaSession;
+    private MediaLibrarySession mMediaLibrarySession;
     
     // tools this service uses
     private PandoraRadio m_pandora_remote;
@@ -167,7 +175,7 @@ public class PandoraRadioService extends MediaSessionService {
         Log.e("Pandoroid",
                 "createMediaSession called");
 
-        if (mMediaSession != null) {
+        if (mMediaLibrarySession != null) {
             return;
         }
 
@@ -201,15 +209,31 @@ public class PandoraRadioService extends MediaSessionService {
                 return super.getAvailableCommands()
                         .buildUpon()
                         .add(Player.COMMAND_PLAY_PAUSE)
+                        .add(Player.COMMAND_PREPARE)
+                        .add(Player.COMMAND_STOP)
+                        .add(Player.COMMAND_SEEK_TO_DEFAULT_POSITION)
                         .add(Player.COMMAND_SEEK_TO_NEXT)
                         .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
                         .add(Player.COMMAND_SEEK_TO_PREVIOUS)
                         .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                        .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
+                        .add(Player.COMMAND_GET_TIMELINE)
+                        .add(Player.COMMAND_GET_METADATA)
                         .build();
             }
 
             @Override
+            public boolean isCommandAvailable(int command) {
+                return getAvailableCommands().contains(command);
+            }
+
+            @Override
             public boolean hasNextMediaItem() {
+                return true;
+            }
+
+            @Override
+            public boolean hasPreviousMediaItem() {
                 return true;
             }
 
@@ -228,18 +252,21 @@ public class PandoraRadioService extends MediaSessionService {
             @Override
             public void play() {
                 Log.i("Pandoroid", "ForwardingPlayer play called");
+                super.play();
                 new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::play);
             }
 
             @Override
             public void pause() {
                 Log.i("Pandoroid", "ForwardingPlayer pause called");
+                super.pause();
                 new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::pause);
             }
 
             @Override
             public void setPlayWhenReady(boolean playWhenReady) {
                 Log.i("Pandoroid", "ForwardingPlayer setPlayWhenReady called: " + playWhenReady);
+                super.setPlayWhenReady(playWhenReady);
                 new Handler(Looper.getMainLooper()).post(() -> {
                     if (playWhenReady) {
                         PandoraRadioService.this.play();
@@ -250,11 +277,103 @@ public class PandoraRadioService extends MediaSessionService {
             }
         };
 
-        mMediaSession =
-                new MediaSession.Builder(this, forwardingPlayer)
-                        .build();
+        mMediaLibrarySession =
+                new MediaLibrarySession.Builder(this, forwardingPlayer, new MediaLibrarySession.Callback() {
+                    @NonNull
+                    @Override
+                    public MediaSession.ConnectionResult onConnect(
+                            @NonNull MediaSession session,
+                            @NonNull MediaSession.ControllerInfo controller) {
+                        MediaSession.ConnectionResult connectionResult =
+                                MediaLibrarySession.Callback.super.onConnect(session, controller);
+                        Player.Commands availablePlayerCommands =
+                                connectionResult.availablePlayerCommands
+                                        .buildUpon()
+                                        .add(Player.COMMAND_PLAY_PAUSE)
+                                        .add(Player.COMMAND_PREPARE)
+                                        .add(Player.COMMAND_STOP)
+                                        .add(Player.COMMAND_SEEK_TO_DEFAULT_POSITION)
+                                        .add(Player.COMMAND_SEEK_TO_NEXT)
+                                        .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                                        .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                                        .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                                        .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
+                                        .add(Player.COMMAND_GET_TIMELINE)
+                                        .add(Player.COMMAND_GET_METADATA)
+                                        .build();
+                        return MediaSession.ConnectionResult.accept(
+                                connectionResult.availableSessionCommands,
+                                availablePlayerCommands);
+                    }
 
-        mSessionToken = MediaSessionCompat.Token.fromToken(mMediaSession.getPlatformToken());
+                    @NonNull
+                    @Override
+                    public ListenableFuture<LibraryResult<MediaItem>> onGetLibraryRoot(
+                            @NonNull MediaLibrarySession session,
+                            @NonNull MediaSession.ControllerInfo browser,
+                            @Nullable LibraryParams params) {
+                        MediaMetadata metadata = new MediaMetadata.Builder()
+                                .setIsBrowsable(true)
+                                .setIsPlayable(false)
+                                .setTitle("Stations")
+                                .build();
+                        MediaItem rootItem = new MediaItem.Builder()
+                                .setMediaId("root")
+                                .setMediaMetadata(metadata)
+                                .build();
+                        return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params));
+                    }
+
+                    @NonNull
+                    @Override
+                    public ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> onGetChildren(
+                            @NonNull MediaLibrarySession session,
+                            @NonNull MediaSession.ControllerInfo browser,
+                            @NonNull String parentId,
+                            int page,
+                            int pageSize,
+                            @Nullable LibraryParams params) {
+                        if ("root".equals(parentId)) {
+                            List<MediaItem> mediaItems = new ArrayList<>();
+                            if (m_stations != null) {
+                                for (Station station : m_stations) {
+                                    MediaMetadata metadata = new MediaMetadata.Builder()
+                                            .setIsBrowsable(false)
+                                            .setIsPlayable(true)
+                                            .setTitle(station.getName())
+                                            .build();
+                                    MediaItem item = new MediaItem.Builder()
+                                            .setMediaId("station_" + station.getStationId())
+                                            .setMediaMetadata(metadata)
+                                            .build();
+                                    mediaItems.add(item);
+                                }
+                            }
+                            return Futures.immediateFuture(LibraryResult.ofItemList(mediaItems, params));
+                        }
+                        return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.of(), params));
+                    }
+
+                    @NonNull
+                    @Override
+                    public ListenableFuture<List<MediaItem>> onAddMediaItems(
+                            @NonNull MediaSession session,
+                            @NonNull MediaSession.ControllerInfo controller,
+                            @NonNull List<MediaItem> mediaItems) {
+                        for (MediaItem item : mediaItems) {
+                            if (item.mediaId != null && item.mediaId.startsWith("station_")) {
+                                String stationId = item.mediaId.substring("station_".length());
+                                new Handler(Looper.getMainLooper()).post(() -> {
+                                    setCurrentStation(stationId);
+                                });
+                            }
+                        }
+                        return Futures.immediateFuture(mediaItems);
+                    }
+                })
+                .build();
+
+        mSessionToken = MediaSessionCompat.Token.fromToken(mMediaLibrarySession.getPlatformToken());
 
         Log.e("Pandoroid",
                 "MediaSession CREATED with token: " + mSessionToken);
@@ -262,8 +381,8 @@ public class PandoraRadioService extends MediaSessionService {
 
     // Media3 automatically queries this to connect clients/system controls
     @Override
-    public MediaSession onGetSession(@NonNull MediaSession.ControllerInfo controllerInfo) {
-        return mMediaSession;
+    public MediaLibrarySession onGetSession(@NonNull MediaSession.ControllerInfo controllerInfo) {
+        return mMediaLibrarySession;
     }
 
     @Override
@@ -287,9 +406,9 @@ public class PandoraRadioService extends MediaSessionService {
             Log.i("Pandoroid", "onDestroy WakeLock is held, releasing");
             mWakeLock.release();
         }
-        if (mMediaSession != null) {
-            mMediaSession.release();
-            mMediaSession = null;
+        if (mMediaLibrarySession != null) {
+            mMediaLibrarySession.release();
+            mMediaLibrarySession = null;
         }
         Log.e("Pandoroid", "PandoraRadioService destroyed");
         super.onDestroy();
@@ -297,8 +416,8 @@ public class PandoraRadioService extends MediaSessionService {
 
     @Override
     public void onTaskRemoved(final Intent rootIntent) {
-        if (mMediaSession != null) {
-            Player player = mMediaSession.getPlayer();
+        if (mMediaLibrarySession != null) {
+            Player player = mMediaLibrarySession.getPlayer();
             // Stop service when task is removed if playback has stopped or paused
             if (!player.getPlayWhenReady() || player.getMediaItemCount() == 0) {
                 stopSelf();
@@ -616,6 +735,9 @@ public class PandoraRadioService extends MediaSessionService {
                                         IOException, 
                                         Exception {
         m_stations = m_pandora_remote.getStations();
+        if (mMediaLibrarySession != null && m_stations != null) {
+            mMediaLibrarySession.notifyChildrenChanged("root", m_stations.size(), null);
+        }
     }
     
     public boolean setCurrentStation(final String station_id) {
@@ -624,8 +746,10 @@ public class PandoraRadioService extends MediaSessionService {
             Log.i("Pandoroid", "Station" + m_stations.get(i));
             if (tmp_station.compareTo(station_id) == 0){
                 m_current_station = tmp_station;
-                //stopForeground(STOP_FOREGROUND_REMOVE);
                 setPlaybackController();
+                if (m_song_playback != null && !m_song_playback.isAlive()) {
+                    startPlayback();
+                }
                 m_prefs.edit().putString("lastStationId", station_id).apply();
                 return true;
             }
@@ -774,7 +898,7 @@ public class PandoraRadioService extends MediaSessionService {
             final Thread t = new Thread(m_song_playback);
             t.start();
         }
-        if (mMediaSession == null) {
+        if (mMediaLibrarySession == null) {
             createMediaSession();
             Log.e("Pandoroid",
                     "Creating MediaSession from startPlayback");
@@ -783,7 +907,7 @@ public class PandoraRadioService extends MediaSessionService {
 
     public void ensureMediaSession() {
 
-        if (mMediaSession == null) {
+        if (mMediaLibrarySession == null) {
             createMediaSession();
         }
     }
