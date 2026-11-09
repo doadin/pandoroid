@@ -54,6 +54,7 @@ import android.os.PowerManager;
 import androidx.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.util.Log;
+import android.view.KeyEvent;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -63,6 +64,7 @@ import java.util.concurrent.TimeUnit;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.IntentCompat;
 import androidx.media3.common.ForwardingPlayer;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -212,10 +214,13 @@ public class PandoraRadioService extends MediaLibraryService {
                         .add(Player.COMMAND_PREPARE)
                         .add(Player.COMMAND_STOP)
                         .add(Player.COMMAND_SEEK_TO_DEFAULT_POSITION)
+                        .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
                         .add(Player.COMMAND_SEEK_TO_NEXT)
                         .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                        .add(Player.COMMAND_SEEK_FORWARD)
                         .add(Player.COMMAND_SEEK_TO_PREVIOUS)
                         .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                        .add(Player.COMMAND_SEEK_BACK)
                         .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
                         .add(Player.COMMAND_GET_TIMELINE)
                         .add(Player.COMMAND_GET_METADATA)
@@ -240,13 +245,49 @@ public class PandoraRadioService extends MediaLibraryService {
             @Override
             public void seekToNext() {
                 Log.i("Pandoroid", "ForwardingPlayer seekToNext called");
-                skip();
+                new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::skip);
             }
 
             @Override
             public void seekToNextMediaItem() {
                 Log.i("Pandoroid", "ForwardingPlayer seekToNextMediaItem called");
-                skip();
+                new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::skip);
+            }
+
+            @Override
+            public void seekForward() {
+                Log.i("Pandoroid", "ForwardingPlayer seekForward called");
+                new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::skip);
+            }
+
+            @Override
+            public void seekToPrevious() {
+                Log.i("Pandoroid", "ForwardingPlayer seekToPrevious called");
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (m_song_playback != null && m_song_playback.getActivePlayer() != null) {
+                        m_song_playback.getActivePlayer().seekTo(0);
+                    }
+                });
+            }
+
+            @Override
+            public void seekToPreviousMediaItem() {
+                Log.i("Pandoroid", "ForwardingPlayer seekToPreviousMediaItem called");
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (m_song_playback != null && m_song_playback.getActivePlayer() != null) {
+                        m_song_playback.getActivePlayer().seekTo(0);
+                    }
+                });
+            }
+
+            @Override
+            public void seekBack() {
+                Log.i("Pandoroid", "ForwardingPlayer seekBack called");
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (m_song_playback != null && m_song_playback.getActivePlayer() != null) {
+                        m_song_playback.getActivePlayer().seekTo(0);
+                    }
+                });
             }
 
             @Override
@@ -293,10 +334,13 @@ public class PandoraRadioService extends MediaLibraryService {
                                         .add(Player.COMMAND_PREPARE)
                                         .add(Player.COMMAND_STOP)
                                         .add(Player.COMMAND_SEEK_TO_DEFAULT_POSITION)
+                                        .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
                                         .add(Player.COMMAND_SEEK_TO_NEXT)
                                         .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                                        .add(Player.COMMAND_SEEK_FORWARD)
                                         .add(Player.COMMAND_SEEK_TO_PREVIOUS)
                                         .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                                        .add(Player.COMMAND_SEEK_BACK)
                                         .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
                                         .add(Player.COMMAND_GET_TIMELINE)
                                         .add(Player.COMMAND_GET_METADATA)
@@ -304,6 +348,49 @@ public class PandoraRadioService extends MediaLibraryService {
                         return MediaSession.ConnectionResult.accept(
                                 connectionResult.availableSessionCommands,
                                 availablePlayerCommands);
+                    }
+
+                    @Override
+                    public boolean onMediaButtonEvent(
+                            @NonNull MediaSession session,
+                            @NonNull MediaSession.ControllerInfo controllerInfo,
+                            @NonNull Intent intent) {
+                        if (Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction())) {
+                            KeyEvent keyEvent = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_KEY_EVENT, KeyEvent.class);
+                            if (keyEvent != null && keyEvent.getAction() == KeyEvent.ACTION_DOWN) {
+                                switch (keyEvent.getKeyCode()) {
+                                    case KeyEvent.KEYCODE_MEDIA_NEXT:
+                                    case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                                    case KeyEvent.KEYCODE_MEDIA_STEP_FORWARD:
+                                        Log.i("Pandoroid", "MediaButton NEXT/FAST_FORWARD pressed");
+                                        new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::skip);
+                                        return true;
+                                    case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                                    case KeyEvent.KEYCODE_MEDIA_REWIND:
+                                    case KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD:
+                                        Log.i("Pandoroid", "MediaButton PREVIOUS/REWIND pressed");
+                                        new Handler(Looper.getMainLooper()).post(() -> {
+                                            if (m_song_playback != null && m_song_playback.getActivePlayer() != null) {
+                                                m_song_playback.getActivePlayer().seekTo(0);
+                                            }
+                                        });
+                                        return true;
+                                    case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                                        Log.i("Pandoroid", "MediaButton PLAY_PAUSE pressed");
+                                        new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::playPause);
+                                        return true;
+                                    case KeyEvent.KEYCODE_MEDIA_PLAY:
+                                        Log.i("Pandoroid", "MediaButton PLAY pressed");
+                                        new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::play);
+                                        return true;
+                                    case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                                        Log.i("Pandoroid", "MediaButton PAUSE pressed");
+                                        new Handler(Looper.getMainLooper()).post(PandoraRadioService.this::pause);
+                                        return true;
+                                }
+                            }
+                        }
+                        return MediaLibrarySession.Callback.super.onMediaButtonEvent(session, controllerInfo, intent);
                     }
 
                     @NonNull
