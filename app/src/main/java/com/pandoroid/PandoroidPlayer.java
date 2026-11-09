@@ -73,7 +73,6 @@ public class PandoroidPlayer extends AppCompatActivity {
     private static int m_song_halted_reason = MediaPlaybackController.HALT_STATE_CLEAR;
     private boolean m_is_bound;
     private SharedPreferences m_prefs;
-    private PartnerLoginTask m_partner_login_task;
     private static boolean m_partner_login_finished_flag = true;
     private PandoraRadioService m_service;
     private RetrieveStationsTask m_retrieve_stations_task;
@@ -187,7 +186,7 @@ public class PandoroidPlayer extends AppCompatActivity {
 
                                     @Override
                                     public void onInvalidAuth() {
-                                        partnerLogin();
+                                        userLogin();
                                     }
                                 }
             );
@@ -318,21 +317,6 @@ public class PandoroidPlayer extends AppCompatActivity {
             return true;
         } else {
             return super.onOptionsItemSelected(item);
-        }
-    }
-
-    /**
-     * Description: Executes a PartnerLoginTask.
-     */
-    private void partnerLogin() {
-        if (m_partner_login_finished_flag) {
-            m_partner_login_finished_flag = false;
-            m_partner_login_task = new PartnerLoginTask();
-            boolean pandora_one_flag = m_prefs.getBoolean("pandora_one_flag", false);
-            m_partner_login_task.execute(pandora_one_flag);
-        }
-        else{
-            showWaiting("Authorizing the app...");
         }
     }
 
@@ -481,22 +465,14 @@ public class PandoroidPlayer extends AppCompatActivity {
     private void startup() {
         if (m_alert_active_flag) {
             m_alert.show();
-        } else if (!m_service.isPartnerAuthorized()) {
-            partnerLogin();
         } else if (!m_service.isUserAuthorized()) {
             userLogin();
-        }
-        else if (m_service.getCurrentStation() == null){
+        } else if (m_service.getCurrentStation() == null) {
             setStation();
-        }
-        else {
-            if (m_song_halted_reason != MediaPlaybackController.HALT_STATE_CLEAR){
-                showSongHaltedProgress(m_song_halted_reason);
-            }
-            try{
+        } else {
+            try {
                 songRefresh(m_service.getCurrentSong());
-            }
-            catch(Exception e){
+            } catch (Exception e) {
                 songRefresh(null);
             }
             dismissWaiting();
@@ -558,56 +534,6 @@ public class PandoroidPlayer extends AppCompatActivity {
         protected void showAlert(AlertDialog alert){
             PandoroidPlayer.this.showAlert(alert);
         }
-    }
-
-    /**
-     * Description: A login async task specific to authorizing the app itself
-     *  for further communication with Pandora's servers.
-     */
-    private class PartnerLoginTask extends PandoroidPlayerServerTask<Boolean> {
-        protected void onPreExecute() {
-            showWaiting("Authorizing the app...");
-        }
-
-        protected Integer doInBackground(Boolean... subscriber_type) {
-            int success_flag = -1;
-            try {
-                m_service.runPartnerLogin(subscriber_type[0]);
-            } catch (RPCException e) {
-                Log.e("Pandoroid", "Error running partner login.", e);
-                if (e.code == RPCException.INVALID_PARTNER_CREDENTIALS) {
-                    success_flag = ERROR_UNSUPPORTED_API;
-                } else {
-                    success_flag = rpcExceptionHandler(e);
-                }
-            } catch (IOException e) {
-                Log.e("Pandoroid", "Error running partner login.", e);
-                success_flag = ioExceptionHandler();
-            } catch (Exception e) {
-                Log.e("Pandoroid", "Error running partner login.", e);
-                success_flag = generalExceptionHandler();
-            }
-
-            return success_flag;
-        }
-
-        protected void onPostExecute(Integer success_int) {
-            int success = success_int;
-            if (success >= 0) {
-                AlertDialog.Builder alert_builder = buildErrorDialog(success);
-                showAlert(alert_builder.create());
-            } else {
-                userLogin();
-            }
-
-            m_partner_login_finished_flag = true;
-        }
-
-        protected void retryAction() {
-            m_alert_active_flag = false;
-            partnerLogin();
-        }
-
     }
 
     /**

@@ -750,6 +750,9 @@ public class MediaPlaybackController implements Runnable{
     private void pushMoreSongs(){
         Vector<Song> new_songs = null;
         try{
+            Log.i(
+                    "Pandoroid",
+                    "m_station_token = " + m_station_token);
             new_songs = m_pandora_remote.getPlaylist(m_station_token);
             Log.i("Pandoroid", "Playlist successfully acquired.");
             m_play_queue.addAll(new_songs);

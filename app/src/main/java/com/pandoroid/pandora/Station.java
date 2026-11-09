@@ -67,7 +67,7 @@ public class Station implements Comparable<Station>, Serializable {
     public Song[] getPlaylist() {       
         
         try{
-            Vector<Song> result = pandora.getPlaylist(idToken);
+            Vector<Song> result = pandora.getPlaylist(id);
             Song[] list = new Song[result.size()];
             result.copyInto(list);
             currentPlaylist = list;

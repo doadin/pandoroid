@@ -93,6 +93,9 @@ import java.util.Objects;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 
+import okhttp3.Request;
+import okhttp3.Response;
+
 /**
  * Description: Someone really needs to give this class some loving, document
  *  it up, organize it, and make it thread safe.
@@ -192,7 +195,7 @@ public class PandoraRadioService extends MediaLibraryService {
         new Thread(() -> {
             try {
                 boolean is_pandora_one = m_prefs.getBoolean("pandora_one_subscriber", false);
-                runPartnerLogin(is_pandora_one);
+                //runPartnerLogin(is_pandora_one);
                 runUserLogin(username, password);
                 updateStations();
                 String lastStationId = m_prefs.getString("lastStationId", null);
@@ -620,67 +623,24 @@ public class PandoraRadioService extends MediaLibraryService {
     public ArrayList<Station> getStations(){
         return m_stations;
     }
-    
-    public boolean isPartnerAuthorized(){
-        return m_pandora_remote.isPartnerAuthorized();
-    }
-    
+
     public boolean isUserAuthorized(){
         return m_pandora_remote.isUserAuthorized();
     }
-    
-    public void runPartnerLogin(final boolean pandora_one_subscriber_flag) throws RPCException, 
-                                                                            IOException,
-                                                                            Exception{
-        Log.i("Pandoroid", 
-              "Running a partner login for a " +
-              (pandora_one_subscriber_flag ? "Pandora One": "standard Pandora") +
-                  " subscriber.");
-        m_pandora_remote.runPartnerLogin(pandora_one_subscriber_flag);
-    }
-    
-    public void runUserLogin(final String user, final String password) throws RPCException,
-                                                                  IOException, 
-                                                                  Exception{
-        boolean needs_partner_login = false;
-        boolean is_pandora_one_user = m_pandora_remote.isPandoraOneCredentials();
-        boolean failure_but_not_epic_failure = true;
-        while (failure_but_not_epic_failure){
-            try{
-                if (needs_partner_login){
-                    m_prefs.edit().putBoolean("pandora_one_flag", is_pandora_one_user).apply();
-                    runPartnerLogin(is_pandora_one_user);
-                    needs_partner_login = false;
-                }
-                
-                if (is_pandora_one_user){
-                    m_audio_quality = PandoraRadio.AAC_64;
-                }
-                else {
-                    m_audio_quality = PandoraRadio.AAC_32;
-                }
-                Log.i("Pandoroid", "Running a user login.");
-                m_pandora_remote.connect(user, password);
-                failure_but_not_epic_failure = false; //Or any type of fail for that matter.
-            }
-            catch (final SubscriberTypeException e){
-                needs_partner_login = true;
-                is_pandora_one_user = e.is_pandora_one;
-                Log.i("Pandoroid", 
-                      "Wrong subscriber type. User is a " +
-                      (is_pandora_one_user? "Pandora One": "standard Pandora") +
-                      " subscriber.");
-            }
-            catch (final RPCException e){
-                if (e.code == RPCException.INVALID_AUTH_TOKEN){
-                    needs_partner_login = true;
-                    Log.e("Pandoroid", "Error INVALID_AUTH_TOKEN occurred", e);
-                }
-                else{
-                    throw e;
-                }
-            }
-        }
+
+    public void runUserLogin(final String user,
+                             final String password)
+            throws RPCException,
+            IOException,
+            Exception {
+
+        Log.i("Pandoroid", "Running user login.");
+
+        m_pandora_remote.initializeCsrf();
+        m_pandora_remote.connect(user, password);
+
+        // Default audio quality.
+        m_audio_quality = PandoraRadio.AAC_64;
     }
     
     public void setListener(final Class<?> klass, final Object listener) {
@@ -958,6 +918,34 @@ public class PandoraRadioService extends MediaLibraryService {
         
         (new RateTask()).execute(rating);
     }
+
+    public void tired() {
+
+        ServerAsyncTask.THREAD_POOL_EXECUTOR.execute(() -> {
+
+            try {
+
+                Song song =
+                        m_song_playback.getSong();
+
+                m_pandora_remote.tired(song);
+
+                Log.i(
+                        "Pandoroid",
+                        "Marked song tired: "
+                                + song.getTitle());
+
+                skip();
+
+            } catch (Exception e) {
+
+                Log.e(
+                        "Pandoroid",
+                        "Failed to mark song tired",
+                        e);
+            }
+        });
+    }
     
     public void resetPlaybackListeners(){
         if (m_song_playback != null){
@@ -993,7 +981,7 @@ public class PandoraRadioService extends MediaLibraryService {
 
                 m_song_playback =
                         new MediaPlaybackController(
-                                m_current_station.getStationIdToken(),
+                                m_current_station.getStationId(),
                                 PandoraRadio.AAC_32,
                                 m_audio_quality,
                                 m_pandora_remote,
@@ -1005,7 +993,7 @@ public class PandoraRadioService extends MediaLibraryService {
                         "Resetting MediaPlaybackController");
 
                 m_song_playback.reset(
-                        m_current_station.getStationIdToken(),
+                        m_current_station.getStationId(),
                         m_pandora_remote);
             }
 
@@ -1126,7 +1114,14 @@ public class PandoraRadioService extends MediaLibraryService {
             }
             ServerAsyncTask.THREAD_POOL_EXECUTOR.execute(() -> {
                 if (m_song != null){
-                    final String rating = ratings[0];             
+                    final String rating = ratings[0];
+                    Log.i(
+                            "Pandoroid",
+                            "Rating received = " + rating);
+
+                    Log.i(
+                            "Pandoroid",
+                            "RATING_LOVE = " + PandoroidPlayer.RATING_LOVE);
                     final boolean rating_bool = rating.equals(PandoroidPlayer.RATING_LOVE);
                     try {
                         m_pandora_remote.rate(this.m_song, rating_bool);
