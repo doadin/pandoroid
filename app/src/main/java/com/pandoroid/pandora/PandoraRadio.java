@@ -100,6 +100,7 @@ public class PandoraRadio {
     private long last_acquired_playlist_time;
     private String last_acquired_playlist_station;
     private final Map<String, String> standard_url_params;
+    private ArrayList<Station> cached_stations;
 
     /**
      * 
@@ -205,6 +206,7 @@ public class PandoraRadio {
                 result.getString("authToken");
         this.listener_token =
                 result.getString("listenerToken");
+        clearStationsCache();
     }
     
     /**
@@ -216,6 +218,7 @@ public class PandoraRadio {
         user_auth_token = null;
         last_acquired_playlist_station = "";
         last_acquired_playlist_time = 0;
+        clearStationsCache();
     }
     
     /**
@@ -452,12 +455,52 @@ public class PandoraRadio {
     
     
     /**
-     * Description: Retrieves the available stations, saves them to a 
-     *  PandoraRadio member variable, and returns them.
+     * Clears the cached stations list.
+     */
+    public void clearStationsCache() {
+        this.cached_stations = null;
+    }
+
+    /**
+     * Stub method to create a station on Pandora.
+     * Clears station cache so next fetch gets updated stations.
+     * API implementation will be added later.
+     */
+    public void createStation(String musicId) throws Exception {
+        // TODO: Implement API call to create station on Pandora server
+        clearStationsCache();
+    }
+
+    /**
+     * Stub method to delete a station on Pandora.
+     * Clears station cache so next fetch gets updated stations.
+     * API implementation will be added later.
+     */
+    public void deleteStation(String stationId) throws Exception {
+        // TODO: Implement API call to delete station on Pandora server
+        clearStationsCache();
+    }
+
+    /**
+     * Description: Retrieves the available stations, using the cache if available.
      */
     public ArrayList<Station> getStations() throws RPCException,
                                                    IOException,
                                                    Exception {
+        return getStations(false);
+    }
+
+    /**
+     * Description: Retrieves the available stations, optionally forcing a refresh from Pandora API.
+     * @param forceRefresh if true, bypasses cache and fetches fresh station list.
+     */
+    public ArrayList<Station> getStations(boolean forceRefresh) throws RPCException,
+                                                                       IOException,
+                                                                       Exception {
+        if (!forceRefresh && this.cached_stations != null) {
+            return this.cached_stations;
+        }
+
         if (!this.isUserAuthorized()){
             throw new Exception("Improper call to getStations(), " +
                                         "the user has not been logged in yet.");
@@ -531,6 +574,7 @@ public class PandoraRadio {
                             this));
         }
         
+        this.cached_stations = stations;
         return stations;
     }
     
