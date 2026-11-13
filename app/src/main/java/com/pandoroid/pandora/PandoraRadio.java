@@ -512,6 +512,9 @@ public class PandoraRadio {
         //        false, true, null);
 
         Map<String, Object> requestArgs = new HashMap<>();
+        //Without these args pandora defaults to only 5 stations returned
+        requestArgs.put("pageSize", 250);
+        requestArgs.put("startIndex", 0);
         JSONObject result = doCall("station/getStations", requestArgs);
         
         //Our stations come in a JSONArray within the JSONObject
