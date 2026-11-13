@@ -512,10 +512,6 @@ public class PandoraRadio {
         //        false, true, null);
 
         Map<String, Object> requestArgs = new HashMap<>();
-        //requestArgs.put("listenerToken",
-        //        listener_token);
-        requestArgs.put("pageSize", 250);
-        requestArgs.put("startIndex", 0);
         JSONObject result = doCall("station/getStations", requestArgs);
         
         //Our stations come in a JSONArray within the JSONObject

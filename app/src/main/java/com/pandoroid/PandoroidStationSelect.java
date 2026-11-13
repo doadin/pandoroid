@@ -36,6 +36,9 @@ import android.widget.TextView;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.pandoroid.PandoraRadioService.ServerAsyncTask;
 import com.pandoroid.pandora.RPCException;
@@ -81,6 +84,12 @@ public class PandoroidStationSelect extends AppCompatActivity {
         setTheme(androidx.appcompat.R.style.Theme_AppCompat);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.station_select);
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
 
         m_list_view = findViewById(android.R.id.list);
         mLoadingContainer = findViewById(R.id.loading_container);
@@ -190,16 +199,20 @@ public class PandoroidStationSelect extends AppCompatActivity {
      */
     private void showStations(){
         ListView lv = getListView();
-        setListAdapter(new StationListAdapter(m_service.getStations(),
-                PandoroidStationSelect.this));
-        lv.setTextFilterEnabled(true);
-        lv.setOnItemClickListener((parent, view, position, id) -> {
-            String str_id = Long.toString(id);
-            m_service.setCurrentStation(str_id);
-            m_service.startPlayback();
-            m_stations_current_flag = false;
-            finish();
-        });
+        if (m_service != null && m_service.getStations() != null) {
+            setListAdapter(new StationListAdapter(m_service.getStations(),
+                    PandoroidStationSelect.this));
+            lv.setTextFilterEnabled(true);
+            lv.setOnItemClickListener((parent, view, position, id) -> {
+                Station station = (Station) parent.getItemAtPosition(position);
+                if (station != null) {
+                    m_service.setCurrentStation(station.getStationId());
+                    m_service.startPlayback();
+                    m_stations_current_flag = false;
+                    finish();
+                }
+            });
+        }
     }
     
     private void startup(){
@@ -322,7 +335,7 @@ public class PandoroidStationSelect extends AppCompatActivity {
         }
  
         public long getItemId(int position) {
-            return Long.parseLong(stations.get(position).getStationId());
+            return position;
         }
 
         private static class ViewHolder {

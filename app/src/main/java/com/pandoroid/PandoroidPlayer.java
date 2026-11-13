@@ -41,9 +41,12 @@ import android.widget.Toast;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import androidx.appcompat.app.AlertDialog;
-
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.pandoroid.PandoraRadioService.ServerAsyncTask;
 import com.pandoroid.pandora.RPCException;
@@ -103,6 +106,12 @@ public class PandoroidPlayer extends AppCompatActivity {
         setTheme(androidx.appcompat.R.style.Theme_AppCompat);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.player);
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
 
         m_prefs = PreferenceManager.getDefaultSharedPreferences(this);
         checkNotificationPermission();
