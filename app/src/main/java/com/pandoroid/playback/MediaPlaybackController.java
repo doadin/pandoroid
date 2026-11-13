@@ -748,6 +748,14 @@ public class MediaPlaybackController implements Runnable{
      * Description: Pushes more songs to the play queue.
      */
     private void pushMoreSongs(){
+        if (m_station_token == null || m_pandora_remote == null) {
+            return;
+        }
+        if (!m_pandora_remote.isGetPlaylistCallValid(m_station_token)) {
+            Log.d("Pandoroid", "Skipping pushMoreSongs: playlist call too frequent for station " + m_station_token);
+            return;
+        }
+
         Vector<Song> new_songs = null;
         try{
             Log.i(
@@ -755,7 +763,9 @@ public class MediaPlaybackController implements Runnable{
                     "m_station_token = " + m_station_token);
             new_songs = m_pandora_remote.getPlaylist(m_station_token);
             Log.i("Pandoroid", "Playlist successfully acquired.");
-            m_play_queue.addAll(new_songs);
+            if (new_songs != null && !new_songs.isEmpty()) {
+                m_play_queue.addAll(new_songs);
+            }
         }
         catch (RPCException e){
             sendErrorNotification(e.getMessage(), e, e.code);

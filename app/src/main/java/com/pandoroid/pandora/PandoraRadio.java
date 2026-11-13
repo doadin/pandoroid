@@ -283,6 +283,12 @@ public class PandoraRadio {
                             "the user has not been logged in yet.");
         }
 
+        this.last_acquired_playlist_time =
+                System.currentTimeMillis() / 1000L;
+
+        this.last_acquired_playlist_station =
+                stationId;
+
         Vector<Song> songs = new Vector<>();
 
         Map<String, Object> requestArgs = new HashMap<>();
@@ -426,12 +432,6 @@ public class PandoraRadio {
                         e);
             }
         }
-
-        this.last_acquired_playlist_time =
-                System.currentTimeMillis() / 1000L;
-
-        this.last_acquired_playlist_station =
-                stationId;
 
         return songs;
     }
@@ -614,8 +614,11 @@ public class PandoraRadio {
         return isUserAuthorized();
     }
     
-    private boolean isGetPlaylistCallValid(String station_token){
-        return (station_token.compareTo(last_acquired_playlist_station) != 0)
+    public boolean isGetPlaylistCallValid(String station_token){
+        if (station_token == null) {
+            return false;
+        }
+        return !Objects.equals(station_token, last_acquired_playlist_station)
                 ||
                 (this.last_acquired_playlist_time <= (
                         (System.currentTimeMillis() / 1000L) - MIN_TIME_BETWEEN_PLAYLIST_CALLS
